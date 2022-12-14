@@ -1,0 +1,64 @@
+def OBOE_SDK_ROOT = file("${buildDir}/Oboe")
+def CLOUDXR_SDK_ROOT = file("${buildDir}/CloudXR")
+def C_SHARED_INCLUDE = file("${project.rootDir}/../../shared")
+
+android {
+    defaultConfig {
+        externalNativeBuild { ndkBuild {
+            arguments "OBOE_SDK_ROOT=${OBOE_SDK_ROOT}"
+            arguments "CLOUDXR_SDK_ROOT=${CLOUDXR_SDK_ROOT}"
+            arguments "C_SHARED_INCLUDE=${C_SHARED_INCLUDE}"
+            arguments '-j1'
+        }}
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path "src/main/src/Android.mk"
+        }
+    }
+
+    buildTypes {
+        release {
+            externalNativeBuild { ndkBuild {
+                arguments "NDK_DEBUG=0"
+            }}
+        }
+        debug {
+            externalNativeBuild { ndkBuild {
+                arguments "NDK_DEBUG=1"
+            }}
+        }
+    }
+}
+
+//repositories {
+//    flatDir{
+//        dirs 'libs'
+//    }
+//}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+//    implementation "com.nvidia.CloudXRClient:CloudXR@aar"
+}
+
+// Extract the Oboe SDK
+task extractOboeSDK(type: Copy)  {
+    def sourceFile = file("${projectDir}/libs/oboe-1.6.0.aar")
+    from zipTree(sourceFile)
+    into OBOE_SDK_ROOT
+}
+
+// Extract the CloudXR SDK
+task extractCloudXRSDK(type: Copy)  {
+    def sourceFile = file("${projectDir}/libs/CloudXR.aar")
+    from zipTree(sourceFile)
+    into CLOUDXR_SDK_ROOT
+}
+
+preBuild.dependsOn(extractOboeSDK)
+preBuild.dependsOn(extractCloudXRSDK)
