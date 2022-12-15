@@ -7,7 +7,7 @@
 
 ## Pico OpenXR CloudXR Client Prerequisites
 ### Required
-- A PICO VR headset that supports the PICO OpenXR SDK, for example - Pico3 serials or Pico4 serials.
+- A PICO VR headset that supports the PICO OpenXR SDK, for example - Pico3 series or Pico4 series.
 - Android Debug Bridge (ADB) to install the client application without needing full developer tools.
   
 ### Optional
