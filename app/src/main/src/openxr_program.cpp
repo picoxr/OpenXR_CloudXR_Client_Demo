@@ -1211,9 +1211,8 @@ struct OpenXrProgram : IOpenXrProgram {
             getInfo.action = m_input.quitAction;
             XrActionStateBoolean quitValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &quitValue));
-            if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) &&
-                (quitValue.currentState == XR_TRUE)) {
-                CHECK_XRCMD(xrRequestExitSession(m_session));
+            if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) && (quitValue.currentState == XR_TRUE)) {
+                trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
             }
             /**************************pico*******************************/
             getInfo.action = m_input.touchpadAction;
@@ -1333,6 +1332,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 }
             }
 
+            // grip
             getInfo.action = m_input.GripAction;
             XrActionStateFloat gripValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &gripValue));
@@ -1341,6 +1341,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = gripValue.currentState;
             }
 
+            // B button
             getInfo.action = m_input.BAction;
             XrActionStateBoolean BValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &BValue));
@@ -1355,6 +1356,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 }
             }
 
+            // Y button
             getInfo.action = m_input.YAction;
             XrActionStateBoolean YValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &YValue));
@@ -1368,6 +1370,8 @@ struct OpenXrProgram : IOpenXrProgram {
                     m_input.handScale[hand] = 1.0;
                 }
             }
+
+            // A button
             getInfo.action = m_input.AAction;
             XrActionStateBoolean AValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &AValue));

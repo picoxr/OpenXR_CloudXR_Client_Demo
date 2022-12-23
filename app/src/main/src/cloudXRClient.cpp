@@ -364,7 +364,8 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     char buffer[128] = {0};
     __system_property_get("ro.product.model", buffer);
     if (std::string(buffer) == "Pico Neo 3") {
-        defaultFoveation = 90;
+        // the fov value from tested
+        defaultFoveation = 88;
     }
     Log::Write(Log::Level::Info, Fmt("ro.product.model:%s, default foveation:%d", buffer, defaultFoveation));
 
@@ -392,7 +393,7 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     desc->disablePosePrediction = false;
     desc->angularVelocityInDeviceSpace = false;
     desc->disableVVSync = false;
-    desc->foveatedScaleFactor = (s_options.mFoveation < 100) ? s_options.mFoveation : defaultFoveation;
+    desc->foveatedScaleFactor = (s_options.mFoveation > 0 && s_options.mFoveation < 100) ? s_options.mFoveation : defaultFoveation;
     desc->maxResFactor = 1.0f;
 
     desc->proj[0][0] = -1.25;
