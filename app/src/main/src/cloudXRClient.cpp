@@ -12,35 +12,32 @@
 #include "common/gfxwrapper_opengl.h"
 #include "pController.h"
 
-PFN_xrGetIPDPICO pfnXrGetIPDPICO = nullptr;
-
 static CloudXR::ClientOptions s_options;
 
 CloudXRClient::CloudXRClient(): mReceiver(nullptr), mClientState(cxrClientState_ReadyToConnect), mInstance(nullptr), mSystemId(0), mSession(nullptr) {
     mIsPaused = true;
     mWasPaused = true;
     mIPD = 0.060f;
+    mFps = 72.0f;
     memset(mFramebuffers, 0, sizeof(mFramebuffers));
+    m_callbackArg = nullptr;
+    m_traggerHapticCallback = nullptr;
 }
 
 CloudXRClient::~CloudXRClient() {
 }
 
-void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSession session) {
+void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSession session, float fps, void* arg, traggerHapticCallback traggerHaptic) {
     mInstance = instance;
     mSystemId = systemId;
     mSession = session;
+    mFps = fps;
+    m_callbackArg = arg;
+    m_traggerHapticCallback = traggerHaptic;
 
     Log::Write(Log::Level::Info, Fmt("CloudXRClient::Initialize......"));
 
-    XrResult ret = xrGetInstanceProcAddr(mInstance, "xrGetIPDPICO", reinterpret_cast<PFN_xrVoidFunction *>(&pfnXrGetIPDPICO));
-    if (pfnXrGetIPDPICO == nullptr) {
-        Log::Write(Log::Level::Error, Fmt("pfnXrGetIPDPICO:%p, ret:%d", pfnXrGetIPDPICO, ret));
-        return;
-    }
-
-    pfnXrGetIPDPICO(mSession, &mIPD);
-    Log::Write(Log::Level::Info, Fmt("pfnXrGetIPDPICO:%p, pid:%f", pfnXrGetIPDPICO, mIPD));
+    Log::Write(Log::Level::Info, Fmt("ipd:%f", mIPD));
 
     s_options.ParseFile("/sdcard/CloudXRLaunchOptions.txt");
 
@@ -73,14 +70,14 @@ void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSessi
             if (mReceiver && mClientState == cxrClientState_StreamingSessionInProgress) {
                 uint64_t nowTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();  //milliseconds
                 // display network quality information pre second
-                if (nowTimeMs - lastTimeMs >= 100) {
+                if (nowTimeMs - lastTimeMs >= 1000) {
                     lastTimeMs = nowTimeMs;
                     cxrConnectionStats stats = {0};
                     cxrError ret = cxrGetConnectionStats(mReceiver, &stats);
                     if (ret == cxrError_Success) {
                         Log::Write(Log::Level::Info, Fmt("clientstats framesPerSecond:%f, frameDeliveryTime:%f, frameQueueTime:%f, frameLatchTime:%f", 
                             stats.framesPerSecond, stats.frameDeliveryTime, stats.frameQueueTime, stats.frameLatchTime));
-                        Log::Write(Log::Level::Error, Fmt("bandKbps:%6d, bandwidthUtilizationKbps:%5d, bandUtilizationPercent:%d%%, roundTripDelayMs:%d, "
+                        Log::Write(Log::Level::Info, Fmt("bandKbps:%6d, bandwidthUtilizationKbps:%5d, bandUtilizationPercent:%d%%, roundTripDelayMs:%d, "
                             "jitterUs:%d, totalPacketsReceived:%d, totalPacketsLost:%d, totalPacketsDropped:%d, quality:%d, qualityReasons:%d",
                             stats.bandwidthAvailableKbps, stats.bandwidthUtilizationKbps, stats.bandwidthUtilizationPercent, stats.roundTripDelayMs,
                             stats.jitterUs, stats.totalPacketsReceived, stats.totalPacketsLost, stats.totalPacketsDropped, stats.quality, stats.qualityReasons));    
@@ -113,7 +110,7 @@ void CloudXRClient::SetPaused(bool pause) {
     }
 }
 
-void CloudXRClient::SetSenserPoseState(XrPosef& pose, XrVector3f& linearVelocity, XrVector3f& angularVelocity, std::vector<XrPosef> &handPose) {
+void CloudXRClient::SetSenserPoseState(XrPosef& pose, XrVector3f& linearVelocity, XrVector3f& angularVelocity, std::vector<XrPosef> &handPose, float ipd) {
     std::lock_guard<std::mutex> guard(mPoseMutex);
     const float offsetHeight = 1.7f;
     mHeadPose = pose;
@@ -125,13 +122,7 @@ void CloudXRClient::SetSenserPoseState(XrPosef& pose, XrVector3f& linearVelocity
     for (auto &hand : mHandPose) {
         hand.position.y += offsetHeight;
     }
-
-    /*Log::Write(Log::Level::Info, Fmt("set headpose x:%f, y:%f, x:%f,  x:%f, y:%f, x:%f, w:%f, linearVelocity x:%f, y:%f, x:%f, angularVelocity x:%f, y:%f, x:%f",
-        mHeadPose.position.x, mHeadPose.position.y, mHeadPose.position.z,
-        mHeadPose.orientation.x, mHeadPose.orientation.y, mHeadPose.orientation.z, mHeadPose.orientation.w,
-        linearVelocity.x, linearVelocity.y, linearVelocity.z,
-        angularVelocity.x, angularVelocity.y, angularVelocity.z));
-        */      
+    mIPD = ipd;
 }
 
 void CloudXRClient::SetTrackingState(cxrVRTrackingState &trackingState) {
@@ -231,7 +222,7 @@ bool CloudXRClient::CreateReceiver() {
     if (s_options.mServerIP.empty()) {
         Log::Write(Log::Level::Error, Fmt("no server ip specifid!!!!!!"));
         return false;
-    }    
+    }
 
     GetDeviceDesc(&mDeviceDesc);
 
@@ -288,7 +279,7 @@ bool CloudXRClient::CreateReceiver() {
                 Log::Write(Log::Level::Info, Fmt("ready to connect......"));
                 break;
             case cxrClientState_ConnectionAttemptInProgress:
-                Log::Write(Log::Level::Info, Fmt("Connection attempt in progress......"));
+                Log::Write(Log::Level::Error, Fmt("Connection attempt in progress......"));
                 break;
             case cxrClientState_ConnectionAttemptFailed:
                 Log::Write(Log::Level::Error, Fmt("Connection attempt failed. [%i]", reason));
@@ -306,7 +297,7 @@ bool CloudXRClient::CreateReceiver() {
         reinterpret_cast<CloudXRClient *>(context)->mClientState = state;
     };
 
-    cxrReceiverDesc desc = {0};
+    cxrReceiverDesc desc = { 0 };
     desc.requestedVersion = CLOUDXR_VERSION_DWORD;
     desc.deviceDesc = mDeviceDesc;
     desc.clientCallbacks = clientProxy;
@@ -315,7 +306,7 @@ bool CloudXRClient::CreateReceiver() {
     desc.numStreams = 2;
     desc.receiverMode = cxrStreamingMode_XR;
     desc.debugFlags = s_options.mDebugFlags;
-    desc.debugFlags |= cxrDebugFlags_EnableAImageReaderDecoder + cxrDebugFlags_LogVerbose;
+    desc.debugFlags |= cxrDebugFlags_EnableAImageReaderDecoder + cxrDebugFlags_LogVerbose + cxrDebugFlags_OutputLinearRGBColor;
     desc.logMaxSizeKB = CLOUDXR_LOG_MAX_DEFAULT;
     desc.logMaxAgeDays = CLOUDXR_LOG_MAX_DEFAULT;
 
@@ -360,30 +351,35 @@ void CloudXRClient::TeardownReceiver() {
 }
 
 void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
-    int32_t defaultFoveation = 0;
-    char buffer[128] = {0};
-    __system_property_get("ro.product.model", buffer);
-    if (std::string(buffer) == "Pico Neo 3") {
-        // the fov value from tested
-        defaultFoveation = 88;
-    }
-    Log::Write(Log::Level::Info, Fmt("ro.product.model:%s, default foveation:%d", buffer, defaultFoveation));
 
     uint32_t viewCount = 0;
-    std::vector<XrViewConfigurationView> configViews;
     xrEnumerateViewConfigurationViews(mInstance, mSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &viewCount, nullptr);
+    std::vector<XrViewConfigurationView> configViews;
+    std::vector<XrViewConfigurationViewFovEPIC> configurationViewFovEPICs;
     configViews.resize(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
+    configurationViewFovEPICs.resize(viewCount);
+    for (int i = 0; i < viewCount; i++) {
+        configurationViewFovEPICs[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW_FOV_EPIC;
+        configViews[i].next = &configurationViewFovEPICs[i];
+    }
     xrEnumerateViewConfigurationViews(mInstance, mSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewCount, &viewCount, configViews.data());
 
-    for (int i =0 ;i < viewCount; i++) {
+    for (int i = 0; i < viewCount; i++) {
         Log::Write(Log::Level::Info, Fmt("viewCount:%d, maxImageRectWidth:%d, maxImageRectHeight:%d, recommendedImageRectWidth:%d, recommendedImageRectHeight:%d", i,
-                                         configViews[i].maxImageRectWidth,configViews[i].maxImageRectHeight, configViews[i].recommendedImageRectWidth, configViews[i].recommendedImageRectHeight));
+                                         configViews[i].maxImageRectWidth,configViews[i].maxImageRectHeight, configViews[i].recommendedImageRectWidth, configViews[i].recommendedImageRectHeight));                          
+        if (configViews[i].next) {
+            XrViewConfigurationViewFovEPIC *configurationViewFovEPIC;
+            configurationViewFovEPIC = (XrViewConfigurationViewFovEPIC*)configViews[i].next;
+            Log::Write(Log::Level::Info, Fmt("recommendedFov(%f, %f, %f, %f)",
+                                         configurationViewFovEPIC->recommendedFov.angleLeft, configurationViewFovEPIC->recommendedFov.angleRight, 
+                                         configurationViewFovEPIC->recommendedFov.angleUp, configurationViewFovEPIC->recommendedFov.angleDown));
+        }
     }
 
     desc->deliveryType = cxrDeliveryType_Stereo_RGB;
     desc->width = configViews[0].recommendedImageRectWidth;
     desc->height = configViews[0].recommendedImageRectHeight;
-    desc->fps = 90;
+    desc->fps = mFps;
     desc->ipd = mIPD;
     desc->predOffset = -0.02f;
     desc->receiveAudio = true;
@@ -393,19 +389,24 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     desc->disablePosePrediction = false;
     desc->angularVelocityInDeviceSpace = false;
     desc->disableVVSync = false;
-    desc->foveatedScaleFactor = (s_options.mFoveation > 0 && s_options.mFoveation < 100) ? s_options.mFoveation : defaultFoveation;
+    desc->foveatedScaleFactor = (s_options.mFoveation > 0 && s_options.mFoveation < 100) ? s_options.mFoveation : 0;
     desc->maxResFactor = 1.0f;
 
-    desc->proj[0][0] = -1.25;
-    desc->proj[0][1] = 1.25;
-    desc->proj[0][2] = -1.25;
-    desc->proj[0][3] = 1.25;
-
-    desc->proj[1][0] = desc->proj[0][0];
-    desc->proj[1][1] = desc->proj[0][1];
-
-    desc->proj[1][2] = desc->proj[0][2];
-    desc->proj[1][3] = desc->proj[0][3];
+    for (int i = 0; i < viewCount; i++) {
+        if (configViews[i].next) {
+            XrViewConfigurationViewFovEPIC *configurationViewFovEPIC = (XrViewConfigurationViewFovEPIC*)configViews[i].next;
+            desc->proj[i][0] = tanf(configurationViewFovEPIC->recommendedFov.angleLeft);
+            desc->proj[i][1] = tanf(configurationViewFovEPIC->recommendedFov.angleRight);
+            desc->proj[i][2] = -tanf(configurationViewFovEPIC->recommendedFov.angleUp);
+            desc->proj[i][3] = -tanf(configurationViewFovEPIC->recommendedFov.angleDown);
+        } else {
+            Log::Write(Log::Level::Error, Fmt("not get fov,set default value 1.27"));
+            desc->proj[i][0] = -1.27f;
+            desc->proj[i][1] = 1.27f;
+            desc->proj[i][2] = -1.27f;
+            desc->proj[i][3] = 1.27f;
+        }
+    }
 
     // cxrChaperone chap;
     desc->chaperone.universe = cxrUniverseOrigin_Standing;
@@ -504,41 +505,25 @@ cxrVector3 cxrConvert(const XrVector3f &v) {
 /// Use left-multiplication to accumulate transformations.
 static inline pxrMatrix4f Matrix4f_Multiply(const pxrMatrix4f* a, const pxrMatrix4f* b) {
     pxrMatrix4f out;
-    out.M[0][0] = a->M[0][0] * b->M[0][0] + a->M[0][1] * b->M[1][0] + a->M[0][2] * b->M[2][0] +
-                  a->M[0][3] * b->M[3][0];
-    out.M[1][0] = a->M[1][0] * b->M[0][0] + a->M[1][1] * b->M[1][0] + a->M[1][2] * b->M[2][0] +
-                  a->M[1][3] * b->M[3][0];
-    out.M[2][0] = a->M[2][0] * b->M[0][0] + a->M[2][1] * b->M[1][0] + a->M[2][2] * b->M[2][0] +
-                  a->M[2][3] * b->M[3][0];
-    out.M[3][0] = a->M[3][0] * b->M[0][0] + a->M[3][1] * b->M[1][0] + a->M[3][2] * b->M[2][0] +
-                  a->M[3][3] * b->M[3][0];
+    out.M[0][0] = a->M[0][0] * b->M[0][0] + a->M[0][1] * b->M[1][0] + a->M[0][2] * b->M[2][0] + a->M[0][3] * b->M[3][0];
+    out.M[1][0] = a->M[1][0] * b->M[0][0] + a->M[1][1] * b->M[1][0] + a->M[1][2] * b->M[2][0] + a->M[1][3] * b->M[3][0];
+    out.M[2][0] = a->M[2][0] * b->M[0][0] + a->M[2][1] * b->M[1][0] + a->M[2][2] * b->M[2][0] + a->M[2][3] * b->M[3][0];
+    out.M[3][0] = a->M[3][0] * b->M[0][0] + a->M[3][1] * b->M[1][0] + a->M[3][2] * b->M[2][0] + a->M[3][3] * b->M[3][0];
 
-    out.M[0][1] = a->M[0][0] * b->M[0][1] + a->M[0][1] * b->M[1][1] + a->M[0][2] * b->M[2][1] +
-                  a->M[0][3] * b->M[3][1];
-    out.M[1][1] = a->M[1][0] * b->M[0][1] + a->M[1][1] * b->M[1][1] + a->M[1][2] * b->M[2][1] +
-                  a->M[1][3] * b->M[3][1];
-    out.M[2][1] = a->M[2][0] * b->M[0][1] + a->M[2][1] * b->M[1][1] + a->M[2][2] * b->M[2][1] +
-                  a->M[2][3] * b->M[3][1];
-    out.M[3][1] = a->M[3][0] * b->M[0][1] + a->M[3][1] * b->M[1][1] + a->M[3][2] * b->M[2][1] +
-                  a->M[3][3] * b->M[3][1];
+    out.M[0][1] = a->M[0][0] * b->M[0][1] + a->M[0][1] * b->M[1][1] + a->M[0][2] * b->M[2][1] + a->M[0][3] * b->M[3][1];
+    out.M[1][1] = a->M[1][0] * b->M[0][1] + a->M[1][1] * b->M[1][1] + a->M[1][2] * b->M[2][1] + a->M[1][3] * b->M[3][1];
+    out.M[2][1] = a->M[2][0] * b->M[0][1] + a->M[2][1] * b->M[1][1] + a->M[2][2] * b->M[2][1] + a->M[2][3] * b->M[3][1];
+    out.M[3][1] = a->M[3][0] * b->M[0][1] + a->M[3][1] * b->M[1][1] + a->M[3][2] * b->M[2][1] + a->M[3][3] * b->M[3][1];
 
-    out.M[0][2] = a->M[0][0] * b->M[0][2] + a->M[0][1] * b->M[1][2] + a->M[0][2] * b->M[2][2] +
-                  a->M[0][3] * b->M[3][2];
-    out.M[1][2] = a->M[1][0] * b->M[0][2] + a->M[1][1] * b->M[1][2] + a->M[1][2] * b->M[2][2] +
-                  a->M[1][3] * b->M[3][2];
-    out.M[2][2] = a->M[2][0] * b->M[0][2] + a->M[2][1] * b->M[1][2] + a->M[2][2] * b->M[2][2] +
-                  a->M[2][3] * b->M[3][2];
-    out.M[3][2] = a->M[3][0] * b->M[0][2] + a->M[3][1] * b->M[1][2] + a->M[3][2] * b->M[2][2] +
-                  a->M[3][3] * b->M[3][2];
+    out.M[0][2] = a->M[0][0] * b->M[0][2] + a->M[0][1] * b->M[1][2] + a->M[0][2] * b->M[2][2] + a->M[0][3] * b->M[3][2];
+    out.M[1][2] = a->M[1][0] * b->M[0][2] + a->M[1][1] * b->M[1][2] + a->M[1][2] * b->M[2][2] + a->M[1][3] * b->M[3][2];
+    out.M[2][2] = a->M[2][0] * b->M[0][2] + a->M[2][1] * b->M[1][2] + a->M[2][2] * b->M[2][2] + a->M[2][3] * b->M[3][2];
+    out.M[3][2] = a->M[3][0] * b->M[0][2] + a->M[3][1] * b->M[1][2] + a->M[3][2] * b->M[2][2] + a->M[3][3] * b->M[3][2];
 
-    out.M[0][3] = a->M[0][0] * b->M[0][3] + a->M[0][1] * b->M[1][3] + a->M[0][2] * b->M[2][3] +
-                  a->M[0][3] * b->M[3][3];
-    out.M[1][3] = a->M[1][0] * b->M[0][3] + a->M[1][1] * b->M[1][3] + a->M[1][2] * b->M[2][3] +
-                  a->M[1][3] * b->M[3][3];
-    out.M[2][3] = a->M[2][0] * b->M[0][3] + a->M[2][1] * b->M[1][3] + a->M[2][2] * b->M[2][3] +
-                  a->M[2][3] * b->M[3][3];
-    out.M[3][3] = a->M[3][0] * b->M[0][3] + a->M[3][1] * b->M[1][3] + a->M[3][2] * b->M[2][3] +
-                  a->M[3][3] * b->M[3][3];
+    out.M[0][3] = a->M[0][0] * b->M[0][3] + a->M[0][1] * b->M[1][3] + a->M[0][2] * b->M[2][3] + a->M[0][3] * b->M[3][3];
+    out.M[1][3] = a->M[1][0] * b->M[0][3] + a->M[1][1] * b->M[1][3] + a->M[1][2] * b->M[2][3] + a->M[1][3] * b->M[3][3];
+    out.M[2][3] = a->M[2][0] * b->M[0][3] + a->M[2][1] * b->M[1][3] + a->M[2][2] * b->M[2][3] + a->M[2][3] * b->M[3][3];
+    out.M[3][3] = a->M[3][0] * b->M[0][3] + a->M[3][1] * b->M[1][3] + a->M[3][2] * b->M[2][3] + a->M[3][3] * b->M[3][3];
     return out;
 }
 
@@ -606,7 +591,7 @@ cxrTrackedDevicePose CloudXRClient::ConvertPose(const XrPosef& inPose, float rot
 void CloudXRClient::ProcessControllers() {
     for (int32_t hand = 0; hand < mHandPose.size(); hand++) {
         XrPosef &pose = mHandPose[hand];
-        mTrackingState.controller[hand].pose = ConvertPose(pose, 0.45f);
+        mTrackingState.controller[hand].pose = ConvertPose(pose);
         mTrackingState.controller[hand].pose.deviceIsConnected = cxrTrue;
         mTrackingState.controller[hand].pose.trackingResult = cxrTrackingResult_Running_OK;
     }
@@ -617,7 +602,9 @@ void CloudXRClient::TriggerHaptic(const cxrHapticFeedback *hapticFeedback) {
     if (haptic.seconds <= 0) {
         return;
     }
-    pxr::Pxr_VibrateController(haptic.amplitude, haptic.seconds * 1000, haptic.controllerIdx);
+    if (m_traggerHapticCallback) {
+        m_traggerHapticCallback(m_callbackArg, haptic.controllerIdx, haptic.amplitude, haptic.seconds, haptic.frequency);
+    }
 }
 
 cxrBool CloudXRClient::RenderAudio(const cxrAudioFrame *audioFrame) {

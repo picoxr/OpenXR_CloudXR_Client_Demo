@@ -39,9 +39,6 @@ struct IGraphicsPlugin {
     virtual uint32_t GetSupportedSwapchainSampleCount(const XrViewConfigurationView& view) {
         return view.recommendedSwapchainSampleCount;
     }
-
-    virtual void RenderView(const XrCompositionLayerProjectionView& layerView, const XrSwapchainImageBaseHeader* swapchainImage,
-                            int64_t swapchainFormat, void* frame) {};
 };
 
 // Create a graphics plugin for the graphics API specified in the options.

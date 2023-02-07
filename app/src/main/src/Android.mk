@@ -53,7 +53,6 @@ LOCAL_SRC_FILES := main.cpp \
                    graphicsplugin_opengles.cpp \
                    openxr_loader/include/common/gfxwrapper_opengl.c \
                    cloudXRClient.cpp \
-                   pController.cpp \
                    openxr_program.cpp
 
 LOCAL_LDLIBS := -llog -landroid -lGLESv3 -lEGL

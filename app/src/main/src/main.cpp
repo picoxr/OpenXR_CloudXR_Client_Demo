@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Khronos Group Inc.
+// Copyright (c) 2017-2022, The Khronos Group Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -9,24 +9,16 @@
 #include "platformplugin.h"
 #include "graphicsplugin.h"
 #include "openxr_program.h"
-#include "pController.h"
 #include "cloudXRClient.h"
 
 namespace {
 
-typedef enum
-{
-    PXR_HMD_3DOF = 0,
-    PXR_HMD_6DOF
-} PxrHmdDof;
-
-typedef enum
-{
-    PXR_CONTROLLER_3DOF = 0,
-    PXR_CONTROLLER_6DOF
-} PxrControllerDof;
-
-void ShowHelp() { Log::Write(Log::Level::Info, "adb shell setprop debug.xr.graphicsPlugin OpenGLES|Vulkan"); }
+void ShowHelp() {
+    Log::Write(Log::Level::Info, "adb shell setprop debug.xr.graphicsPlugin OpenGLES|Vulkan");
+    Log::Write(Log::Level::Info, "adb shell setprop debug.xr.formFactor Hmd|Handheld");
+    Log::Write(Log::Level::Info, "adb shell setprop debug.xr.viewConfiguration Stereo|Mono");
+    Log::Write(Log::Level::Info, "adb shell setprop debug.xr.blendMode Opaque|Additive|AlphaBlend");
+}
 
 bool UpdateOptionsFromSystemProperties(Options& options) {
     char value[PROP_VALUE_MAX] = {};
@@ -39,7 +31,6 @@ bool UpdateOptionsFromSystemProperties(Options& options) {
         Log::Write(Log::Level::Warning, "GraphicsPlugin Default OpenGLES");
         options.GraphicsPlugin = "OpenGLES";
     }
-
     return true;
 }
 }  // namespace
@@ -49,7 +40,6 @@ struct AndroidAppState {
     ANativeWindow* NativeWindow = nullptr;
     bool Resumed = false;
     std::shared_ptr<IOpenXrProgram> program;
-
 };
 
 /**
@@ -71,8 +61,6 @@ static void app_handle_cmd(struct android_app* app, int32_t cmd) {
             Log::Write(Log::Level::Info, "onResume()");
             Log::Write(Log::Level::Info, "    APP_CMD_RESUME");
             appState->Resumed = true;
-            pxr::Pxr_SetEngineVersion("2.8.0.1");
-            pxr::Pxr_StartCVControllerThread(PXR_HMD_6DOF, PXR_CONTROLLER_6DOF);
             if (appState->program.get()) {
                 appState->program->SetCloudxrClientPaused(false);
             }
@@ -82,8 +70,6 @@ static void app_handle_cmd(struct android_app* app, int32_t cmd) {
             Log::Write(Log::Level::Info, "onPause()");
             Log::Write(Log::Level::Info, "    APP_CMD_PAUSE");
             appState->Resumed = false;
-            pxr::Pxr_SetEngineVersion("2.7.0.0");
-            pxr::Pxr_StopCVControllerThread(PXR_HMD_6DOF, PXR_CONTROLLER_6DOF);
             if (appState->program.get()) {
                 appState->program->SetCloudxrClientPaused(true);
             }
@@ -120,10 +106,11 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event){
     if(type == AINPUT_EVENT_TYPE_KEY){
         int32_t action = AKeyEvent_getAction(event);
         int32_t code   = AKeyEvent_getKeyCode(event);
-        Log::Write(Log::Level::Error, Fmt("xxxx:%d:%d\n", code, action));
+        Log::Write(Log::Level::Info, Fmt("onInputEvent:%d %d\n", code, action));
     }
     return 0;
 }
+
 /**
  * This is the main entry point of a native application that is using
  * android_native_app_glue.  It runs in its own thread, with its own
@@ -154,12 +141,13 @@ void android_main(struct android_app* app) {
 
         // Create platform-specific implementation.
         std::shared_ptr<IPlatformPlugin> platformPlugin = CreatePlatformPlugin(options, data);
-
         // Create graphics API implementation.
         std::shared_ptr<IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin(options, platformPlugin);
 
         // Initialize the OpenXR program.
         std::shared_ptr<IOpenXrProgram> program = CreateOpenXrProgram(options, platformPlugin, graphicsPlugin);
+
+        // create cloudxr client.
         program->CreateCloudxrClient();
         appState.program = program;
 
@@ -189,7 +177,6 @@ void android_main(struct android_app* app) {
                 // If the timeout is zero, returns immediately without blocking.
                 // If the timeout is negative, waits indefinitely until an event appears.
                 const int timeoutMilliseconds = (!appState.Resumed && !program->IsSessionRunning() && app->destroyRequested == 0) ? -1 : 0;
-                //const int timeoutMilliseconds = 10;
                 if (ALooper_pollAll(timeoutMilliseconds, nullptr, &events, (void**)&source) < 0) {
                     break;
                 }
@@ -201,21 +188,28 @@ void android_main(struct android_app* app) {
             }
 
             program->PollEvents(&exitRenderLoop, &requestRestart);
-            if (!program->IsSessionRunning()) {
-                continue;
-            }
-            if(program->PollActions())
-            {
+
+            if (exitRenderLoop && !requestRestart) {
                 ANativeActivity_finish(app->activity);
             }
+
+            if (!program->IsSessionRunning()) {
+                // Throttle loop since xrWaitFrame won't be called.
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                continue;
+            }
+
+            program->PollActions();
             program->RenderFrame();
         }
-
         app->activity->vm->DetachCurrentThread();
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
         Log::Write(Log::Level::Error, ex.what());
-    } catch (...) {
+    }
+    catch (...)
+    {
         Log::Write(Log::Level::Error, "Unknown Error");
     }
 }
-
