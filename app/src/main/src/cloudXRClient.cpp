@@ -10,7 +10,6 @@
 #include <GLES3/gl3.h>
 #include "logger.h"
 #include "common/gfxwrapper_opengl.h"
-#include "pController.h"
 
 static CloudXR::ClientOptions s_options;
 
