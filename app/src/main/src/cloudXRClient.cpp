@@ -14,11 +14,12 @@
 static CloudXR::ClientOptions s_options;
 
 CloudXRClient::CloudXRClient(): mReceiver(nullptr), mClientState(cxrClientState_ReadyToConnect), mInstance(nullptr), mSystemId(0), mSession(nullptr) {
+    memset(&mDeviceDesc, 0x00, sizeof(mDeviceDesc));
     mIsPaused = true;
     mWasPaused = true;
     mIPD = 0.060f;
     mFps = 72.0f;
-    memset(mFramebuffers, 0, sizeof(mFramebuffers));
+    memset(mFramebuffers, 0x00, sizeof(mFramebuffers));
     m_callbackArg = nullptr;
     m_traggerHapticCallback = nullptr;
 }
