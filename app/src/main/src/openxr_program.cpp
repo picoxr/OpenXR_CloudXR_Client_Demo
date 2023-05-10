@@ -91,7 +91,7 @@ inline XrReferenceSpaceCreateInfo GetXrReferenceSpaceCreateInfo(const std::strin
 struct OpenXrProgram : IOpenXrProgram {
     OpenXrProgram(const std::shared_ptr<Options>& options, const std::shared_ptr<IPlatformPlugin>& platformPlugin,
                   const std::shared_ptr<IGraphicsPlugin>& graphicsPlugin)
-        : m_options(*options), m_platformPlugin(platformPlugin), m_graphicsPlugin(graphicsPlugin) {}
+        : m_options(*options), m_platformPlugin(platformPlugin), m_graphicsPlugin(graphicsPlugin), m_isSupport_epic_view_configuration_fov_extention(false) {}
 
     ~OpenXrProgram() override {
         if (m_input.actionSet != XR_NULL_HANDLE) {
@@ -119,9 +119,9 @@ struct OpenXrProgram : IOpenXrProgram {
         }
     }
 
-    static void LogLayersAndExtensions() {
+    void LogLayersAndExtensions() {
         // Write out extension properties for a given layer.
-        const auto logExtensions = [](const char* layerName, int indent = 0) {
+        const auto logExtensions = [&](const char* layerName, int indent = 0) {
             uint32_t instanceExtensionCount;
             CHECK_XRCMD(xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount, nullptr));
 
@@ -130,14 +130,15 @@ struct OpenXrProgram : IOpenXrProgram {
                 extension.type = XR_TYPE_EXTENSION_PROPERTIES;
             }
 
-            CHECK_XRCMD(xrEnumerateInstanceExtensionProperties(layerName, (uint32_t)extensions.size(), &instanceExtensionCount,
-                                                               extensions.data()));
+            CHECK_XRCMD(xrEnumerateInstanceExtensionProperties(layerName, (uint32_t)extensions.size(), &instanceExtensionCount, extensions.data()));
 
             const std::string indentStr(indent, ' ');
-            Log::Write(Log::Level::Verbose, Fmt("%sAvailable Extensions: (%d)", indentStr.c_str(), instanceExtensionCount));
+            Log::Write(Log::Level::Info, Fmt("%sAvailable Extensions: (%d)", indentStr.c_str(), instanceExtensionCount));
             for (const XrExtensionProperties& extension : extensions) {
-                Log::Write(Log::Level::Verbose, Fmt("%sAvailable Extensions:  Name=%s", indentStr.c_str(), extension.extensionName,
-                                                    extension.extensionVersion));
+                Log::Write(Log::Level::Info, Fmt("%sAvailable Extensions:  Name=%s version=%d", indentStr.c_str(), extension.extensionName, extension.extensionVersion));
+                if (strstr(extension.extensionName, XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME)) {
+                    m_isSupport_epic_view_configuration_fov_extention = true;
+                }
             }
         };
 
@@ -190,7 +191,10 @@ struct OpenXrProgram : IOpenXrProgram {
                        [](const std::string& ext) { return ext.c_str(); });
 
         extensions.push_back(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
-        extensions.push_back(XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME);
+
+        if (m_isSupport_epic_view_configuration_fov_extention) {
+            extensions.push_back(XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME);
+        }
 
         XrInstanceCreateInfo createInfo{XR_TYPE_INSTANCE_CREATE_INFO};
         createInfo.next = m_platformPlugin->GetInstanceCreateExtension();
@@ -1152,7 +1156,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
     void StartCloudxrClient() override {
         if (m_cloudxr.get()) {
-            m_cloudxr->Initialize(m_instance, m_systemId, m_session, m_displayRefreshRate, (void*)this, [](void *arg, int controllerIdx, float amplitude, float seconds, float frequency) {
+            m_cloudxr->Initialize(m_instance, m_systemId, m_session, m_displayRefreshRate, m_isSupport_epic_view_configuration_fov_extention, (void*)this, [](void *arg, int controllerIdx, float amplitude, float seconds, float frequency) {
                 Log::Write(Log::Level::Error, Fmt("this:%p, index:%d, amplitude:%f, seconds:%f, frequency:%f", arg, controllerIdx, amplitude, seconds, frequency));
                 OpenXrProgram* thiz = (OpenXrProgram*)arg;
                 XrHapticVibration vibration{XR_TYPE_HAPTIC_VIBRATION};
@@ -1193,6 +1197,7 @@ struct OpenXrProgram : IOpenXrProgram {
     XrSpace m_ViewSpace{XR_NULL_HANDLE};
     PFN_xrGetDisplayRefreshRateFB m_pfnXrGetDisplayRefreshRateFB;
     float m_displayRefreshRate;
+    bool m_isSupport_epic_view_configuration_fov_extention; 
 };
 }  // namespace
 

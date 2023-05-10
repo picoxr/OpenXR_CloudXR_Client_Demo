@@ -22,16 +22,18 @@ CloudXRClient::CloudXRClient(): mReceiver(nullptr), mClientState(cxrClientState_
     memset(mFramebuffers, 0x00, sizeof(mFramebuffers));
     m_callbackArg = nullptr;
     m_traggerHapticCallback = nullptr;
+    m_isSupport_epic_view_configuration_fov_extention = false;
 }
 
 CloudXRClient::~CloudXRClient() {
 }
 
-void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSession session, float fps, void* arg, traggerHapticCallback traggerHaptic) {
+void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSession session, float fps, bool isSupportFov, void* arg, traggerHapticCallback traggerHaptic) {
     mInstance = instance;
     mSystemId = systemId;
     mSession = session;
     mFps = fps;
+    m_isSupport_epic_view_configuration_fov_extention = isSupportFov;
     m_callbackArg = arg;
     m_traggerHapticCallback = traggerHaptic;
 
@@ -357,10 +359,12 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     std::vector<XrViewConfigurationView> configViews;
     std::vector<XrViewConfigurationViewFovEPIC> configurationViewFovEPICs;
     configViews.resize(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
-    configurationViewFovEPICs.resize(viewCount);
-    for (int i = 0; i < viewCount; i++) {
-        configurationViewFovEPICs[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW_FOV_EPIC;
-        configViews[i].next = &configurationViewFovEPICs[i];
+    if (m_isSupport_epic_view_configuration_fov_extention) {
+        configurationViewFovEPICs.resize(viewCount);
+        for (int i = 0; i < viewCount; i++) {
+            configurationViewFovEPICs[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW_FOV_EPIC;
+            configViews[i].next = &configurationViewFovEPICs[i];
+        }
     }
     xrEnumerateViewConfigurationViews(mInstance, mSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewCount, &viewCount, configViews.data());
 
@@ -400,11 +404,12 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
             desc->proj[i][2] = -tanf(configurationViewFovEPIC->recommendedFov.angleUp);
             desc->proj[i][3] = -tanf(configurationViewFovEPIC->recommendedFov.angleDown);
         } else {
-            Log::Write(Log::Level::Error, Fmt("not get fov,set default value 1.27"));
-            desc->proj[i][0] = -1.27f;
-            desc->proj[i][1] = 1.27f;
-            desc->proj[i][2] = -1.27f;
-            desc->proj[i][3] = 1.27f;
+            Log::Write(Log::Level::Info, Fmt("not get fov,set default value"));
+            //This value 1.09130836f is the value of neo3 (pro/pro eye) tested with a higher version ROM, and the value of pico4 is about 1.27f
+            desc->proj[i][0] = -1.09130836f;
+            desc->proj[i][1] =  1.09130836f;
+            desc->proj[i][2] = -1.09130836f;
+            desc->proj[i][3] =  1.09130836f;
         }
     }
 

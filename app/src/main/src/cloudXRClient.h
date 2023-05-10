@@ -22,7 +22,7 @@ public:
 
     ~CloudXRClient();
 
-    void Initialize(XrInstance instance, XrSystemId systemId, XrSession session, float fps, void* arg, traggerHapticCallback traggerHaptic);
+    void Initialize(XrInstance instance, XrSystemId systemId, XrSession session, float fps, bool isSupportFov, void* arg, traggerHapticCallback traggerHaptic);
 
     void SetPaused(bool pause);
 
@@ -99,6 +99,7 @@ private:
 
     traggerHapticCallback m_traggerHapticCallback;
     void*                 m_callbackArg;
+    bool m_isSupport_epic_view_configuration_fov_extention;
 };
 
 // Row-major 4x4 matrix.
