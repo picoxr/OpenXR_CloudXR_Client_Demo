@@ -26,7 +26,7 @@ For developers who want to modify, build, and debug the client application, a co
 >  - To use the bundled OpenJDK, click File -> Project Structure in the menu bar. In the SDK Location page under JDK Location, select the Use embedded JDK checkbox, and then click OK.
 >  - The NDK version was selected because it was the LTS release at the time of development and is aligned with Android Studio 4.0.x as the default NDK version.
 >  - Newer NDK versions, such as 23.x, might cause build issues.
->  - As of the CloudXR 3.1 release, only Android 64-bit builds are supported.
+>  - As of the CloudXR 3.2 release, only Android 64-bit builds are supported.
   
 
 You also need:
