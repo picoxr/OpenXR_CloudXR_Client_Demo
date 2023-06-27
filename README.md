@@ -1,7 +1,7 @@
 # OpenXR CloudXR Client Demo
 - **This software contains source code provided by NVIDIA Corporation**.
 - The client decodes and renders content that is streamed from the CloudXR server and collects motion and controller data from the VR headset that is sent to the CloudXR server.The VR headset must be capable of decoding 4k HEVC video @ 60fps. The provided sample client has been tested with the Pico Neo3, Pico4, Pico4 Pro and Pico4 Enterprise.
-- If you have any questions/comments, please visit [**Pico Developer Support Portal**](https://picodevsupport.freshdesk.com/support/home) and raise your question there.
+- If you have any questions/comments, please visit [**Pico Developer community**](https://developer-cn.pico-interactive.com/community) and raise your question there.
 
 ## Feature
 - The Project integrates with [CloudXR v3.2](https://developer.nvidia.com/nvidia-cloudxr-sdk-get-started) using [PICO OpenXR  SDK v2.1.0](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=11).
