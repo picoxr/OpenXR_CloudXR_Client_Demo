@@ -12,5 +12,5 @@
 //        mavenCentral()
 //    }
 //}
-rootProject.name = "NativeXR_CloudXR_Client_Demo"
+rootProject.name = "OpenXR_CloudXR_Client_Demo"
 include ':app'

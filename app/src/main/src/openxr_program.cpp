@@ -17,6 +17,15 @@
 
 namespace {
 
+typedef enum {
+    DeviceTypeNone = 0,
+    DeviceTypeNeo3,
+    DeviceTypeNeo3Pro,
+    DeviceTypeNeo3ProEye,
+    DeviceTypePico4,
+    DeviceTypePico4Pro,
+}DeviceType;
+
 #if !defined(XR_USE_PLATFORM_WIN32)
 #define strcpy_s(dest, source) strncpy((dest), (source), sizeof(dest))
 #endif
@@ -201,7 +210,7 @@ struct OpenXrProgram : IOpenXrProgram {
         createInfo.enabledExtensionCount = (uint32_t)extensions.size();
         createInfo.enabledExtensionNames = extensions.data();
         
-        strcpy(createInfo.applicationInfo.applicationName, "HelloXR");
+        strcpy(createInfo.applicationInfo.applicationName, "CloudXR");
         createInfo.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
 
         CHECK_XRCMD(xrCreateInstance(&createInfo, &m_instance));
@@ -276,8 +285,7 @@ struct OpenXrProgram : IOpenXrProgram {
         bool blendModeFound = false;
         for (XrEnvironmentBlendMode mode : blendModes) {
             const bool blendModeMatch = (mode == m_options.Parsed.EnvironmentBlendMode);
-            Log::Write(Log::Level::Info,
-                       Fmt("Environment Blend Mode (%s) : %s", to_string(mode), blendModeMatch ? "(Selected)" : ""));
+            Log::Write(Log::Level::Info, Fmt("Environment Blend Mode (%s) : %s", to_string(mode), blendModeMatch ? "(Selected)" : ""));
             blendModeFound |= blendModeMatch;
         }
         CHECK(blendModeFound);
@@ -291,8 +299,7 @@ struct OpenXrProgram : IOpenXrProgram {
         systemInfo.formFactor = m_options.Parsed.FormFactor;
         CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId));
 
-        Log::Write(Log::Level::Verbose,
-                   Fmt("Using system %d for form factor %s", m_systemId, to_string(m_options.Parsed.FormFactor)));
+        Log::Write(Log::Level::Verbose, Fmt("Using system %d for form factor %s", m_systemId, to_string(m_options.Parsed.FormFactor)));
         CHECK(m_instance != XR_NULL_HANDLE);
         CHECK(m_systemId != XR_NULL_SYSTEM_ID);
 
@@ -318,25 +325,32 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     struct InputState {
-        XrActionSet actionSet{XR_NULL_HANDLE};
-        XrAction poseAction{XR_NULL_HANDLE};
-        XrAction aimAction{XR_NULL_HANDLE};
-        XrAction vibrateAction{XR_NULL_HANDLE};
         std::array<XrPath, Side::COUNT> handSubactionPath;
         std::array<XrSpace, Side::COUNT> handSpace;
         std::array<XrSpace, Side::COUNT> aimSpace;
 
-        XrAction joystickClickAction{XR_NULL_HANDLE};
-        XrAction joystickTouchAction{XR_NULL_HANDLE};
-        XrAction joystickAction{XR_NULL_HANDLE};
-        XrAction triggerAction{XR_NULL_HANDLE};
+        XrActionSet actionSet{XR_NULL_HANDLE};
+        XrAction gripPoseAction{XR_NULL_HANDLE};
+        XrAction aimPoseAction{XR_NULL_HANDLE};
+        XrAction hapticAction{XR_NULL_HANDLE};
+
+        XrAction thumbstickValueAction{XR_NULL_HANDLE};
+        XrAction thumbstickClickAction{XR_NULL_HANDLE};
+        XrAction thumbstickTouchAction{XR_NULL_HANDLE};
+        XrAction triggerValueAction{XR_NULL_HANDLE};
+        XrAction triggerClickAction{XR_NULL_HANDLE};
         XrAction triggerTouchAction{XR_NULL_HANDLE};
-        XrAction gripClickAction{XR_NULL_HANDLE};
-        XrAction gripValueAction{XR_NULL_HANDLE};
+        XrAction squeezeValueAction{XR_NULL_HANDLE};
+        XrAction squeezeClickAction{XR_NULL_HANDLE};
+
         XrAction AAction{XR_NULL_HANDLE};
         XrAction BAction{XR_NULL_HANDLE};
         XrAction XAction{XR_NULL_HANDLE};
         XrAction YAction{XR_NULL_HANDLE};
+        XrAction ATouchAction{XR_NULL_HANDLE};
+        XrAction BTouchAction{XR_NULL_HANDLE};
+        XrAction XTouchAction{XR_NULL_HANDLE};
+        XrAction YTouchAction{XR_NULL_HANDLE};
         XrAction menuAction{XR_NULL_HANDLE};
     };
 
@@ -359,75 +373,82 @@ struct OpenXrProgram : IOpenXrProgram {
             // Create an input action getting the left and right hand poses.
             XrActionCreateInfo actionInfo{XR_TYPE_ACTION_CREATE_INFO};
             actionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
-            strcpy_s(actionInfo.actionName, "hand_pose");
-            strcpy_s(actionInfo.localizedActionName, "Hand Pose");
+            strcpy_s(actionInfo.actionName, "grip_pose");
+            strcpy_s(actionInfo.localizedActionName, "Grip_pose");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.poseAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.gripPoseAction));
 
             actionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
             strcpy_s(actionInfo.actionName, "aim_pose");
-            strcpy_s(actionInfo.localizedActionName, "Aim Pose");
+            strcpy_s(actionInfo.localizedActionName, "Aim_pose");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.aimAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.aimPoseAction));
 
             // Create output actions for vibrating the left and right controller.
             actionInfo.actionType = XR_ACTION_TYPE_VIBRATION_OUTPUT;
-            strcpy_s(actionInfo.actionName, "vibrate_hand");
-            strcpy_s(actionInfo.localizedActionName, "Vibrate Hand");
+            strcpy_s(actionInfo.actionName, "haptic");
+            strcpy_s(actionInfo.localizedActionName, "Haptic");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.vibrateAction));
-
-            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy_s(actionInfo.actionName, "joystickclick");
-            strcpy_s(actionInfo.localizedActionName, "Joystickclick");
-            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
-            actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.joystickClickAction));
-
-            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy_s(actionInfo.actionName, "joysticktouch");
-            strcpy_s(actionInfo.localizedActionName, "Joysticktouch");
-            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
-            actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.joystickTouchAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.hapticAction));
 
             actionInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
-            strcpy_s(actionInfo.actionName, "joystick");
-            strcpy_s(actionInfo.localizedActionName, "Joystick");
+            strcpy_s(actionInfo.actionName, "thumbstick_value");
+            strcpy_s(actionInfo.localizedActionName, "Thumbstick_value");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.joystickAction));
-
-            actionInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
-            strcpy_s(actionInfo.actionName, "trigger");
-            strcpy_s(actionInfo.localizedActionName, "Trigger");
-            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
-            actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.triggerAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.thumbstickValueAction));
 
             actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy_s(actionInfo.actionName, "triggertouch");
-            strcpy_s(actionInfo.localizedActionName, "Triggertouch");
+            strcpy_s(actionInfo.actionName, "thumbstick_click");
+            strcpy_s(actionInfo.localizedActionName, "Thumbstick_click");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.thumbstickClickAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "thumbstick_touch");
+            strcpy_s(actionInfo.localizedActionName, "Thumbstick_touch");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.thumbstickTouchAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+            strcpy_s(actionInfo.actionName, "trigger_value");
+            strcpy_s(actionInfo.localizedActionName, "Trigger_value");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.triggerValueAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "trigger_click");
+            strcpy_s(actionInfo.localizedActionName, "Trigger_click");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.triggerClickAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "trigger_touch");
+            strcpy_s(actionInfo.localizedActionName, "Trigger_touch");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
             CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.triggerTouchAction));
 
-            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy_s(actionInfo.actionName, "gripclick");
-            strcpy_s(actionInfo.localizedActionName, "Gripclick");
-            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
-            actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.gripClickAction));
-
             actionInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
-            strcpy_s(actionInfo.actionName, "gripvalue");
-            strcpy_s(actionInfo.localizedActionName, "Gripvalue");
+            strcpy_s(actionInfo.actionName, "squeeze_value");
+            strcpy_s(actionInfo.localizedActionName, "Squeeze_value");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.gripValueAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.squeezeValueAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "squeeze_click");
+            strcpy_s(actionInfo.localizedActionName, "Squeeze_click");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.squeezeClickAction));
 
             actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
             strcpy_s(actionInfo.actionName, "akey");
@@ -458,97 +479,165 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.YAction));
 
             actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "akey_touch");
+            strcpy_s(actionInfo.localizedActionName, "Akey_touch");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.ATouchAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "bkey_touch");
+            strcpy_s(actionInfo.localizedActionName, "Bkey_touch");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.BTouchAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "xkey_touch");
+            strcpy_s(actionInfo.localizedActionName, "Xkey_touch");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.XTouchAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "ykey_touch");
+            strcpy_s(actionInfo.localizedActionName, "Ykey_touch");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.YTouchAction)); 
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
             strcpy_s(actionInfo.actionName, "menukey");
             strcpy_s(actionInfo.localizedActionName, "Menukey");
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.menuAction));       
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.menuAction));    
         }
 
-        std::array<XrPath, Side::COUNT> squeezeValuePath;
-        std::array<XrPath, Side::COUNT> squeezeClickPath;
-        std::array<XrPath, Side::COUNT> posePath;
-        std::array<XrPath, Side::COUNT> aimPath;
+        std::array<XrPath, Side::COUNT> gripPosePath;
+        std::array<XrPath, Side::COUNT> aimPosePath;
         std::array<XrPath, Side::COUNT> hapticPath;
-        std::array<XrPath, Side::COUNT> triggerValuePath;
+
+        std::array<XrPath, Side::COUNT> thumbstickValuePath;
         std::array<XrPath, Side::COUNT> thumbstickClickPath;
         std::array<XrPath, Side::COUNT> thumbstickTouchPath;
-        std::array<XrPath, Side::COUNT> thumbstickPosPath;
+        std::array<XrPath, Side::COUNT> squeezeValuePath;
+        std::array<XrPath, Side::COUNT> squeezeClickPath;
+        std::array<XrPath, Side::COUNT> triggerClickPath;
+        std::array<XrPath, Side::COUNT> triggerValuePath;
         std::array<XrPath, Side::COUNT> triggerTouchPath;
         std::array<XrPath, Side::COUNT> AClickPath;
         std::array<XrPath, Side::COUNT> BClickPath;
         std::array<XrPath, Side::COUNT> XClickPath;
         std::array<XrPath, Side::COUNT> YClickPath;
+        std::array<XrPath, Side::COUNT> ATouchPath;
+        std::array<XrPath, Side::COUNT> BTouchPath;
+        std::array<XrPath, Side::COUNT> XTouchPath;
+        std::array<XrPath, Side::COUNT> YTouchPath;
         std::array<XrPath, Side::COUNT> menuPath;
 
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/click", &thumbstickClickPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/click", &thumbstickClickPath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/touch", &thumbstickTouchPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/touch", &thumbstickTouchPath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick", &thumbstickPosPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick", &thumbstickPosPath[Side::RIGHT]));
+        // see https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#XR_BD_controller_interaction
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/grip/pose",  &gripPosePath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/grip/pose", &gripPosePath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/aim/pose",   &aimPosePath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/aim/pose",  &aimPosePath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/output/haptic",    &hapticPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/output/haptic",   &hapticPath[Side::RIGHT]));
 
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/value", &triggerValuePath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick",        &thumbstickValuePath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick",       &thumbstickValuePath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/click",  &thumbstickClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/click", &thumbstickClickPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/touch",  &thumbstickTouchPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/touch", &thumbstickTouchPath[Side::RIGHT]));
+
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/value",  &triggerValuePath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/value", &triggerValuePath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/touch", &triggerTouchPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/click",  &triggerClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/click", &triggerClickPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/touch",  &triggerTouchPath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/touch", &triggerTouchPath[Side::RIGHT]));
 
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/value", &squeezeValuePath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/value",  &squeezeValuePath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/squeeze/value", &squeezeValuePath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/click", &squeezeClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/click",  &squeezeClickPath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/squeeze/click", &squeezeClickPath[Side::RIGHT]));
-
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/grip/pose", &posePath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/grip/pose", &posePath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/aim/pose", &aimPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/aim/pose", &aimPath[Side::RIGHT]));
 
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/a/click", &AClickPath[Side::RIGHT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/b/click", &BClickPath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/x/click", &XClickPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/y/click", &YClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/x/click",  &XClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/y/click",  &YClickPath[Side::LEFT]));
 
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/back/click", &menuPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/back/click", &menuPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/a/touch", &ATouchPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/b/touch", &BTouchPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/x/touch",  &XTouchPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/y/touch",  &YTouchPath[Side::LEFT]));
 
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/output/haptic", &hapticPath[Side::LEFT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/output/haptic", &hapticPath[Side::RIGHT]));
+        if (m_deviceROM < 0x540) {
+            CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/back/click", &menuPath[Side::LEFT]));
+            CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/back/click", &menuPath[Side::RIGHT]));
+        } else {
+            CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click", &menuPath[Side::LEFT]));
+            CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click", &menuPath[Side::RIGHT]));
+        }
 
         // Suggest bindings for the PICO Controller.
         {
-            XrPath picoMixedRealityInteractionProfilePath;
-            CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/pico/neo3_controller", &picoMixedRealityInteractionProfilePath));
-            std::vector<XrActionSuggestedBinding> bindings{{{m_input.joystickClickAction, thumbstickClickPath[Side::LEFT]},
-                                                            {m_input.joystickClickAction, thumbstickClickPath[Side::RIGHT]},
-                                                            {m_input.joystickTouchAction, thumbstickTouchPath[Side::LEFT]},
-                                                            {m_input.joystickTouchAction, thumbstickTouchPath[Side::RIGHT]}, 
-                                                            {m_input.joystickAction, thumbstickPosPath[Side::LEFT]},
-                                                            {m_input.joystickAction, thumbstickPosPath[Side::RIGHT]},
+            //see https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#XR_BD_controller_interaction
+            const char* interactionProfilePath = nullptr;
+            if (m_deviceType == DeviceTypeNeo3 || m_deviceType == DeviceTypeNeo3Pro || m_deviceType == DeviceTypeNeo3ProEye) {
+                interactionProfilePath = "/interaction_profiles/bytedance/pico_neo3_controller";
+            } else {
+                interactionProfilePath = "/interaction_profiles/bytedance/pico4_controller";
+            }
+            if (m_deviceROM < 0x540) {
+                interactionProfilePath = "/interaction_profiles/pico/neo3_controller";
+            }
 
-                                                            {m_input.triggerAction, triggerValuePath[Side::LEFT]},
-                                                            {m_input.triggerAction, triggerValuePath[Side::RIGHT]},
+            XrPath picoMixedRealityInteractionProfilePath;
+            CHECK_XRCMD(xrStringToPath(m_instance, interactionProfilePath, &picoMixedRealityInteractionProfilePath));
+            std::vector<XrActionSuggestedBinding> bindings{{{m_input.gripPoseAction, gripPosePath[Side::LEFT]},
+                                                            {m_input.gripPoseAction, gripPosePath[Side::RIGHT]},
+                                                            {m_input.aimPoseAction, aimPosePath[Side::LEFT]},
+                                                            {m_input.aimPoseAction, aimPosePath[Side::RIGHT]},
+                                                            {m_input.hapticAction, hapticPath[Side::LEFT]},
+                                                            {m_input.hapticAction, hapticPath[Side::RIGHT]},
+
+                                                            {m_input.thumbstickValueAction, thumbstickValuePath[Side::LEFT]},
+                                                            {m_input.thumbstickValueAction, thumbstickValuePath[Side::RIGHT]},
+                                                            {m_input.thumbstickClickAction, thumbstickClickPath[Side::LEFT]},
+                                                            {m_input.thumbstickClickAction, thumbstickClickPath[Side::RIGHT]},
+                                                            {m_input.thumbstickTouchAction, thumbstickTouchPath[Side::LEFT]},
+                                                            {m_input.thumbstickTouchAction, thumbstickTouchPath[Side::RIGHT]}, 
+
+                                                            {m_input.triggerValueAction, triggerValuePath[Side::LEFT]},
+                                                            {m_input.triggerValueAction, triggerValuePath[Side::RIGHT]},
+                                                            {m_input.triggerClickAction, triggerClickPath[Side::LEFT]},
+                                                            {m_input.triggerClickAction, triggerClickPath[Side::RIGHT]},
                                                             {m_input.triggerTouchAction, triggerTouchPath[Side::LEFT]},
                                                             {m_input.triggerTouchAction, triggerTouchPath[Side::RIGHT]},
                                                             
-                                                            {m_input.gripClickAction, squeezeClickPath[Side::LEFT]},
-                                                            {m_input.gripClickAction, squeezeClickPath[Side::RIGHT]},
-                                                            {m_input.gripValueAction, squeezeValuePath[Side::LEFT]},
-                                                            {m_input.gripValueAction, squeezeValuePath[Side::RIGHT]},
-
-                                                            {m_input.poseAction, posePath[Side::LEFT]},
-                                                            {m_input.poseAction, posePath[Side::RIGHT]},
-                                                            {m_input.aimAction, aimPath[Side::LEFT]},
-                                                            {m_input.aimAction, aimPath[Side::RIGHT]},
+                                                            {m_input.squeezeClickAction, squeezeClickPath[Side::LEFT]},
+                                                            {m_input.squeezeClickAction, squeezeClickPath[Side::RIGHT]},
+                                                            {m_input.squeezeValueAction, squeezeValuePath[Side::LEFT]},
+                                                            {m_input.squeezeValueAction, squeezeValuePath[Side::RIGHT]},
 
                                                             {m_input.AAction, AClickPath[Side::RIGHT]},
                                                             {m_input.BAction, BClickPath[Side::RIGHT]},
                                                             {m_input.XAction, XClickPath[Side::LEFT]},
                                                             {m_input.YAction, YClickPath[Side::LEFT]},
 
-                                                            {m_input.menuAction, menuPath[Side::LEFT]},
-                                                            {m_input.menuAction, menuPath[Side::RIGHT]},
-                                                            {m_input.vibrateAction, hapticPath[Side::LEFT]},
-                                                            {m_input.vibrateAction, hapticPath[Side::RIGHT]} }};
+                                                            {m_input.ATouchAction, ATouchPath[Side::RIGHT]},
+                                                            {m_input.BTouchAction, BTouchPath[Side::RIGHT]},
+                                                            {m_input.XTouchAction, XTouchPath[Side::LEFT]},
+                                                            {m_input.YTouchAction, YTouchPath[Side::LEFT]},
+
+                                                            {m_input.menuAction, menuPath[Side::LEFT]}}};
+
+            if (m_deviceType == DeviceTypeNeo3 || m_deviceType == DeviceTypeNeo3Pro || m_deviceType == DeviceTypeNeo3ProEye) {
+                XrActionSuggestedBinding menuRightBinding{m_input.menuAction, menuPath[Side::RIGHT]};
+                bindings.push_back(menuRightBinding);
+            }
 
             XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
             suggestedBindings.interactionProfile = picoMixedRealityInteractionProfilePath;
@@ -558,14 +647,14 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         XrActionSpaceCreateInfo actionSpaceInfo{XR_TYPE_ACTION_SPACE_CREATE_INFO};
-        actionSpaceInfo.action = m_input.poseAction;
+        actionSpaceInfo.action = m_input.gripPoseAction;
         actionSpaceInfo.poseInActionSpace.orientation.w = 1.0f;
         actionSpaceInfo.subactionPath = m_input.handSubactionPath[Side::LEFT];
         CHECK_XRCMD(xrCreateActionSpace(m_session, &actionSpaceInfo, &m_input.handSpace[Side::LEFT]));
         actionSpaceInfo.subactionPath = m_input.handSubactionPath[Side::RIGHT];
         CHECK_XRCMD(xrCreateActionSpace(m_session, &actionSpaceInfo, &m_input.handSpace[Side::RIGHT]));
 
-        actionSpaceInfo.action = m_input.aimAction;
+        actionSpaceInfo.action = m_input.aimPoseAction;
         actionSpaceInfo.poseInActionSpace.orientation.w = 1.0f;
         actionSpaceInfo.subactionPath = m_input.handSubactionPath[Side::LEFT];
         CHECK_XRCMD(xrCreateActionSpace(m_session, &actionSpaceInfo, &m_input.aimSpace[Side::LEFT]));
@@ -586,6 +675,29 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK_XRCMD(xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &m_ViewSpace));
     }
 
+    void GetDeviceInfo() {
+        char buffer[64] = {0};
+        __system_property_get("sys.pxr.product.name", buffer);
+        Log::Write(Log::Level::Info, Fmt("device is: %s", buffer));
+        if (std::string(buffer) == "Pico Neo 3 Pro Eye") {
+            m_deviceType = DeviceTypeNeo3ProEye;
+        } else if (std::string(buffer) == "Pico 4") {
+            m_deviceType = DeviceTypePico4;
+        }else if (std::string(buffer) == "PICO 4 Pro") {
+            m_deviceType = DeviceTypePico4Pro;
+        }
+
+        __system_property_get("ro.build.id", buffer);
+        int a, b, c;
+        sscanf(buffer, "%d.%d.%d",&a, &b, &c);
+        m_deviceROM = (a << 8) + (b << 4) + c;
+        Log::Write(Log::Level::Info, Fmt("device ROM: %x", m_deviceROM));
+        if (m_deviceROM < 0x540) {
+            //CHECK_XRRESULT(XR_ERROR_VALIDATION_FAILURE, "This demo can only run on devices with ROM version greater than 540");
+        }
+    }
+
+
     void InitializeSession() override {
         CHECK(m_instance != XR_NULL_HANDLE);
         CHECK(m_session == XR_NULL_HANDLE);
@@ -599,6 +711,7 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrCreateSession(m_instance, &createInfo, &m_session));
         }
 
+        GetDeviceInfo();
         LogReferenceSpaces();
         InitializeActions();
         CreateVisualizedSpaces();
@@ -642,11 +755,9 @@ struct OpenXrProgram : IOpenXrProgram {
 
         // Query and cache view configuration views.
         uint32_t viewCount;
-        CHECK_XRCMD(
-            xrEnumerateViewConfigurationViews(m_instance, m_systemId, m_options.Parsed.ViewConfigType, 0, &viewCount, nullptr));
+        CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, m_options.Parsed.ViewConfigType, 0, &viewCount, nullptr));
         m_configViews.resize(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
-        CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, m_options.Parsed.ViewConfigType, viewCount,
-                                                      &viewCount, m_configViews.data()));
+        CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, m_options.Parsed.ViewConfigType, viewCount, &viewCount, m_configViews.data()));
 
         // Create and cache view buffer for xrLocateViews later.
         m_views.resize(viewCount, {XR_TYPE_VIEW});
@@ -657,8 +768,7 @@ struct OpenXrProgram : IOpenXrProgram {
             uint32_t swapchainFormatCount;
             CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, 0, &swapchainFormatCount, nullptr));
             std::vector<int64_t> swapchainFormats(swapchainFormatCount);
-            CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, (uint32_t)swapchainFormats.size(), &swapchainFormatCount,
-                                                    swapchainFormats.data()));
+            CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, (uint32_t)swapchainFormats.size(), &swapchainFormatCount, swapchainFormats.data()));
             CHECK(swapchainFormatCount == swapchainFormats.size());
             m_colorSwapchainFormat = m_graphicsPlugin->SelectColorSwapchainFormat(swapchainFormats);
 
@@ -706,8 +816,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 uint32_t imageCount;
                 CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, 0, &imageCount, nullptr));
                 // XXX This should really just return XrSwapchainImageBaseHeader*
-                std::vector<XrSwapchainImageBaseHeader*> swapchainImages =
-                    m_graphicsPlugin->AllocateSwapchainImageStructs(imageCount, swapchainCreateInfo);
+                std::vector<XrSwapchainImageBaseHeader*> swapchainImages = m_graphicsPlugin->AllocateSwapchainImageStructs(imageCount, swapchainCreateInfo);
                 CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, imageCount, &imageCount, swapchainImages[0]));
 
                 m_swapchainImages.insert(std::make_pair(swapchain.handle, std::move(swapchainImages)));
@@ -755,8 +864,8 @@ struct OpenXrProgram : IOpenXrProgram {
                     break;
                 }
                 case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
-                    LogActionSourceName(m_input.poseAction, "Pose");
-                    LogActionSourceName(m_input.vibrateAction, "Vibrate");
+                    LogActionSourceName(m_input.gripPoseAction, "Pose");
+                    LogActionSourceName(m_input.hapticAction, "Haptic");
                     break;
                 case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
                 default: {
@@ -767,8 +876,7 @@ struct OpenXrProgram : IOpenXrProgram {
         }
     }
 
-    void HandleSessionStateChangedEvent(const XrEventDataSessionStateChanged& stateChangedEvent, bool* exitRenderLoop,
-                                        bool* requestRestart) {
+    void HandleSessionStateChangedEvent(const XrEventDataSessionStateChanged& stateChangedEvent, bool* exitRenderLoop, bool* requestRestart) {
         const XrSessionState oldState = m_sessionState;
         m_sessionState = stateChangedEvent.state;
 
@@ -868,131 +976,129 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
             getInfo.subactionPath = m_input.handSubactionPath[hand];
 
-            //menu button
+            //menu click
             getInfo.action = m_input.menuAction;
-            XrActionStateBoolean homeValue{XR_TYPE_ACTION_STATE_BOOLEAN};
-            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &homeValue));
-            if (homeValue.isActive == XR_TRUE) {
-                if(homeValue.changedSinceLastSync == XR_TRUE) {
-                    if(homeValue.currentState == XR_TRUE) {
-                        Log::Write(Log::Level::Error, Fmt("pico keyevent menu button pressed %d xxx", hand));
+            XrActionStateBoolean menuValue{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &menuValue));
+            if (menuValue.isActive == XR_TRUE) {
+                if (menuValue.changedSinceLastSync == XR_TRUE) {
+                    if (menuValue.currentState == XR_TRUE) {
                         trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
-                    } else{
-                        Log::Write(Log::Level::Error, Fmt("pico keyevent menu button released %d xxx", hand));
                     }
                 }
             }
 
-            // joystick click
-            getInfo.action = m_input.joystickClickAction;
-            XrActionStateBoolean joystickClickValue{XR_TYPE_ACTION_STATE_BOOLEAN};
-            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &joystickClickValue));
-            if ((joystickClickValue.isActive == XR_TRUE) && (joystickClickValue.changedSinceLastSync == XR_TRUE)) {
-                if(joystickClickValue.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent joystickClick pressed %d",hand));
+            //thumbstick value x/y
+            getInfo.action = m_input.thumbstickValueAction;
+            XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
+            CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getInfo, &thumbstickValue));
+            if (thumbstickValue.isActive == XR_TRUE) {
+                trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = thumbstickValue.currentState.x;
+                trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = thumbstickValue.currentState.y;
+            }
+            // thumbstick click
+            getInfo.action = m_input.thumbstickClickAction;
+            XrActionStateBoolean thumbstickClick{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &thumbstickClick));
+            if ((thumbstickClick.isActive == XR_TRUE) && (thumbstickClick.changedSinceLastSync == XR_TRUE)) {
+                if (thumbstickClick.currentState == XR_TRUE) {
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent thumbstick pressed %d",hand));
                 } else {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent joystickClick released %d",hand));
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent thumbstick released %d",hand));
                 }
             }
-
-            // joystick touch
-            getInfo.action = m_input.joystickTouchAction;
-            XrActionStateBoolean joystickTouch{XR_TYPE_ACTION_STATE_BOOLEAN};
-            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &joystickTouch));
-            if (joystickTouch.isActive == XR_TRUE) {
-                if (joystickTouch.changedSinceLastSync == XR_TRUE && joystickTouch.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent joystickTouch click %d", hand));
+            // thumbstick touch
+            getInfo.action = m_input.thumbstickTouchAction;
+            XrActionStateBoolean thumbstickTouch{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &thumbstickTouch));
+            if (thumbstickTouch.isActive == XR_TRUE) {
+                if (thumbstickTouch.changedSinceLastSync == XR_TRUE && thumbstickTouch.currentState == XR_TRUE) {
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent thumbstick click %d", hand));
                 }
-            }
-
-            //joystick x/y
-            getInfo.action = m_input.joystickAction;
-            XrActionStateVector2f joystickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
-            CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getInfo, &joystickValue));
-            if (joystickValue.isActive == XR_TRUE) {
-                trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = joystickValue.currentState.x;
-                trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = joystickValue.currentState.y;
             }
 
             //trigger value
-            getInfo.action = m_input.triggerAction;
+            getInfo.action = m_input.triggerValueAction;
             XrActionStateFloat triggerValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &triggerValue));
             if (triggerValue.isActive == XR_TRUE) {
                 trackingState.controller[hand].scalarComps[cxrAnalog_Trigger] = triggerValue.currentState;
             }
-
             // trigger touch
             getInfo.action = m_input.triggerTouchAction;
-            XrActionStateBoolean TriggerTouch{XR_TYPE_ACTION_STATE_BOOLEAN};
-            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &TriggerTouch));
-            if (TriggerTouch.isActive == XR_TRUE) {
-                if (TriggerTouch.changedSinceLastSync == XR_TRUE && TriggerTouch.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent TriggerTouch hand:%d", hand));
+            XrActionStateBoolean triggerTouch{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerTouch));
+            if (triggerTouch.isActive == XR_TRUE) {
+                if (triggerTouch.changedSinceLastSync == XR_TRUE && triggerTouch.currentState == XR_TRUE) {
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Touch;
                 }
             }
-
-            // grip click
-            getInfo.action = m_input.gripClickAction;
-            XrActionStateBoolean gripClick{XR_TYPE_ACTION_STATE_BOOLEAN};
-            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &gripClick));
-            if ((gripClick.isActive == XR_TRUE) && (gripClick.changedSinceLastSync == XR_TRUE)) {
-                if(gripClick.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent grip click pressed %d", hand));
-                } else{
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent grip click released %d", hand));
+            // trigger click
+            getInfo.action = m_input.triggerClickAction;
+            XrActionStateBoolean triggerClick{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerClick));
+            if (triggerClick.isActive == XR_TRUE) {
+                if (triggerClick.changedSinceLastSync == XR_TRUE && triggerClick.currentState == XR_TRUE) {
+                    trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Click;
                 }
             }
 
-            // grip value
-            getInfo.action = m_input.gripValueAction;
-            XrActionStateFloat gripValue{XR_TYPE_ACTION_STATE_FLOAT};
-            CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &gripValue));
-            if (gripValue.isActive == XR_TRUE) {
-                trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = gripValue.currentState;
+            // squeeze value
+            getInfo.action = m_input.squeezeValueAction;
+            XrActionStateFloat squeezeValue{XR_TYPE_ACTION_STATE_FLOAT};
+            CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &squeezeValue));
+            if (squeezeValue.isActive == XR_TRUE) {
+                trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = squeezeValue.currentState;
             }
-           
+            // squeeze click
+            getInfo.action = m_input.squeezeClickAction;
+            XrActionStateBoolean squeezeClick{XR_TYPE_ACTION_STATE_BOOLEAN};
+            CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &squeezeClick));
+            if ((squeezeClick.isActive == XR_TRUE) && (squeezeClick.changedSinceLastSync == XR_TRUE)) {
+                if(squeezeClick.currentState == XR_TRUE) {
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent squeeze click pressed %d", hand));
+                } else{
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent squeeze click released %d", hand));
+                }
+            }
+
             // A button
             getInfo.action = m_input.AAction;
             XrActionStateBoolean AValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &AValue));
             if ((AValue.isActive == XR_TRUE) && (AValue.changedSinceLastSync == XR_TRUE)) {
                 if(AValue.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent A button pressed %d", hand));
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent A button pressed %d", hand));
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_A;
                 }
             }
-
             // B button
             getInfo.action = m_input.BAction;
             XrActionStateBoolean BValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &BValue));
             if ((BValue.isActive == XR_TRUE) && (BValue.changedSinceLastSync == XR_TRUE)) {
                 if(BValue.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent B button pressed %d", hand));
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent B button pressed %d", hand));
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_B;
                 }
             }
-
             // X button
             getInfo.action = m_input.XAction;
             XrActionStateBoolean XValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &XValue));
             if ((XValue.isActive == XR_TRUE) && (XValue.changedSinceLastSync == XR_TRUE)) {
                 if(XValue.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent X button pressed %d", hand));
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent X button pressed %d", hand));
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_X;
                 }
             }
-
             // Y button
             getInfo.action = m_input.YAction;
             XrActionStateBoolean YValue{XR_TYPE_ACTION_STATE_BOOLEAN};
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &YValue));
             if ((YValue.isActive == XR_TRUE) && (YValue.changedSinceLastSync == XR_TRUE)) {
                 if(YValue.currentState == XR_TRUE) {
-                    Log::Write(Log::Level::Error, Fmt("pico keyevent Y button pressed %d", hand));
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent Y button pressed %d", hand));
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Y;
                 }
             }
@@ -1049,7 +1155,7 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         // get ipd
-        float ipd = sqrt(pow(abs(m_views[1].pose.position.x - m_views[0].pose.position.x), 2) + pow(abs(m_views[1].pose.position.y - m_views[0].pose.position.y), 2) + pow(abs(m_views[1].pose.position.z - m_views[0].pose.position.z), 2));
+        float ipd = sqrt(pow(abs(m_views[1].pose.position.x-m_views[0].pose.position.x),2)+pow(abs(m_views[1].pose.position.y-m_views[0].pose.position.y),2)+pow(abs(m_views[1].pose.position.z-m_views[0].pose.position.z),2));
 
         CHECK(viewCountOutput == viewCapacityInput);
         CHECK(viewCountOutput == m_configViews.size());
@@ -1164,7 +1270,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 vibration.duration = seconds * 1000 * 10000000;  //nanoseconds
                 vibration.frequency = frequency;
                 XrHapticActionInfo hapticActionInfo{XR_TYPE_HAPTIC_ACTION_INFO};
-                hapticActionInfo.action = thiz->m_input.vibrateAction;
+                hapticActionInfo.action = thiz->m_input.hapticAction;
                 hapticActionInfo.subactionPath = thiz->m_input.handSubactionPath[controllerIdx];
                 CHECK_XRCMD(xrApplyHapticFeedback(thiz->m_session, &hapticActionInfo, (XrHapticBaseHeader*)&vibration));
             });
@@ -1197,7 +1303,9 @@ struct OpenXrProgram : IOpenXrProgram {
     XrSpace m_ViewSpace{XR_NULL_HANDLE};
     PFN_xrGetDisplayRefreshRateFB m_pfnXrGetDisplayRefreshRateFB;
     float m_displayRefreshRate;
-    bool m_isSupport_epic_view_configuration_fov_extention; 
+    bool m_isSupport_epic_view_configuration_fov_extention;
+    DeviceType m_deviceType;
+    uint32_t m_deviceROM;
 };
 }  // namespace
 

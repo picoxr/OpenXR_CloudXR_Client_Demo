@@ -4,7 +4,7 @@
 - If you have any questions/comments, please visit [**Pico Developer community**](https://developer-cn.pico-interactive.com/community) and raise your question there.
 
 ## Feature
-- The Project integrates with [CloudXR v3.2](https://developer.nvidia.com/nvidia-cloudxr-sdk-get-started) using [PICO OpenXR  SDK v2.1.0](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=11).
+- The Project integrates with [CloudXR v3.2](https://developer.nvidia.com/nvidia-cloudxr-sdk-get-started) using [PICO OpenXR  SDK v2.2.0](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=11).
 
 ## Pico OpenXR CloudXR Client Prerequisites
 ### Required

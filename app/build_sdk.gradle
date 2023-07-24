@@ -43,7 +43,6 @@ android {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-//    implementation "com.nvidia.CloudXRClient:CloudXR@aar"
 }
 
 // Extract the Oboe SDK
