@@ -78,7 +78,7 @@ void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSessi
                     cxrError ret = cxrGetConnectionStats(mReceiver, &stats);
                     if (ret == cxrError_Success) {
                         Log::Write(Log::Level::Info, Fmt("clientstats framesPerSecond:%f, frameDeliveryTime:%f, frameQueueTime:%f, frameLatchTime:%f", 
-                            stats.framesPerSecond, stats.frameDeliveryTime, stats.frameQueueTime, stats.frameLatchTime));
+                            stats.framesPerSecond, stats.frameDeliveryTimeMs, stats.frameQueueTimeMs, stats.frameLatchTimeMs));
                         Log::Write(Log::Level::Info, Fmt("bandKbps:%6d, bandwidthUtilizationKbps:%5d, bandUtilizationPercent:%d%%, roundTripDelayMs:%d, "
                             "jitterUs:%d, totalPacketsReceived:%d, totalPacketsLost:%d, totalPacketsDropped:%d, quality:%d, qualityReasons:%d",
                             stats.bandwidthAvailableKbps, stats.bandwidthUtilizationKbps, stats.bandwidthUtilizationPercent, stats.roundTripDelayMs,
