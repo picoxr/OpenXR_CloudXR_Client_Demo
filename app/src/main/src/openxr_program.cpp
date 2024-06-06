@@ -983,7 +983,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if (menuValue.isActive == XR_TRUE) {
                 if (menuValue.changedSinceLastSync == XR_TRUE) {
                     if (menuValue.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                         trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
+#endif
                     }
                 }
             }
@@ -993,8 +995,10 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
             CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getInfo, &thumbstickValue));
             if (thumbstickValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = thumbstickValue.currentState.x;
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = thumbstickValue.currentState.y;
+#endif
             }
             // thumbstick click
             getInfo.action = m_input.thumbstickClickAction;
@@ -1022,7 +1026,9 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateFloat triggerValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &triggerValue));
             if (triggerValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Trigger] = triggerValue.currentState;
+#endif
             }
             // trigger touch
             getInfo.action = m_input.triggerTouchAction;
@@ -1030,7 +1036,9 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerTouch));
             if (triggerTouch.isActive == XR_TRUE) {
                 if (triggerTouch.changedSinceLastSync == XR_TRUE && triggerTouch.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Touch;
+#endif
                 }
             }
             // trigger click
@@ -1039,7 +1047,9 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerClick));
             if (triggerClick.isActive == XR_TRUE) {
                 if (triggerClick.changedSinceLastSync == XR_TRUE && triggerClick.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Click;
+#endif
                 }
             }
 
@@ -1048,7 +1058,9 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateFloat squeezeValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &squeezeValue));
             if (squeezeValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = squeezeValue.currentState;
+#endif
             }
             // squeeze click
             getInfo.action = m_input.squeezeClickAction;
@@ -1069,7 +1081,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((AValue.isActive == XR_TRUE) && (AValue.changedSinceLastSync == XR_TRUE)) {
                 if(AValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent A button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_A;
+#endif
                 }
             }
             // B button
@@ -1079,7 +1093,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((BValue.isActive == XR_TRUE) && (BValue.changedSinceLastSync == XR_TRUE)) {
                 if(BValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent B button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_B;
+#endif
                 }
             }
             // X button
@@ -1089,7 +1105,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((XValue.isActive == XR_TRUE) && (XValue.changedSinceLastSync == XR_TRUE)) {
                 if(XValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent X button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_X;
+#endif
                 }
             }
             // Y button
@@ -1099,7 +1117,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((YValue.isActive == XR_TRUE) && (YValue.changedSinceLastSync == XR_TRUE)) {
                 if(YValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent Y button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Y;
+#endif
                 }
             }
         }
