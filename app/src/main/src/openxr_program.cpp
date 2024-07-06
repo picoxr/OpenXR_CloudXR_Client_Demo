@@ -17,7 +17,68 @@
 
 namespace {
 
-typedef enum {
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+#ifndef CLOUDXR3_5
+    //-----------------------------------------------------------------------------
+    static constexpr int inputCountQuest = 21;
+
+    static const char* inputPathsQuest[inputCountQuest] =
+            {
+                    "/input/system/click",
+                    "/input/application_menu/click", // this is carried over from old system and might be remove, it's not a button binding, more action.
+                    "/input/trigger/click",
+                    "/input/trigger/touch",
+                    "/input/trigger/value",
+                    "/input/grip/click",
+                    "/input/grip/touch",
+                    "/input/grip/value",
+                    "/input/joystick/click",
+                    "/input/joystick/touch",
+                    "/input/joystick/x",
+                    "/input/joystick/y",
+                    "/input/a/click",
+                    "/input/b/click",
+                    "/input/x/click", // Touch has X/Y on L controller, so we'll map the raw strings.
+                    "/input/y/click",
+                    "/input/a/touch",
+                    "/input/b/touch",
+                    "/input/x/touch",
+                    "/input/y/touch",
+                    "/input/thumb_rest/touch",
+            };
+
+    cxrInputValueType inputValueTypesQuest[inputCountQuest] =
+            {
+                    cxrInputValueType_boolean, //input/system/click
+                    cxrInputValueType_boolean, //input/application_menu/click
+                    cxrInputValueType_boolean, //input/trigger/click
+                    cxrInputValueType_boolean, //input/trigger/touch
+                    cxrInputValueType_float32, //input/trigger/value
+                    cxrInputValueType_boolean, //input/grip/click
+                    cxrInputValueType_boolean, //input/grip/touch
+                    cxrInputValueType_float32, //input/grip/value
+                    cxrInputValueType_boolean, //input/joystick/click
+                    cxrInputValueType_boolean, //input/joystick/touch
+                    cxrInputValueType_float32, //input/joystick/x
+                    cxrInputValueType_float32, //input/joystick/y
+                    cxrInputValueType_boolean, //input/a/click
+                    cxrInputValueType_boolean, //input/b/click
+                    cxrInputValueType_boolean, //input/x/click
+                    cxrInputValueType_boolean, //input/y/click
+                    cxrInputValueType_boolean, //input/a/touch
+                    cxrInputValueType_boolean, //input/b/touch
+                    cxrInputValueType_boolean, //input/x/touch
+                    cxrInputValueType_boolean, //input/y/touch
+                    cxrInputValueType_boolean, //input/thumb_rest/touch
+            };
+#endif
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+
+    typedef enum {
     DeviceTypeNone = 0,
     DeviceTypeNeo3,
     DeviceTypeNeo3Pro,
@@ -96,6 +157,11 @@ inline XrReferenceSpaceCreateInfo GetXrReferenceSpaceCreateInfo(const std::strin
     }
     return referenceSpaceCreateInfo;
 }
+
+#ifndef CLOUDXR3_5
+    const int MAX_CONTROLLERS = 2;
+    cxrControllerHandle     m_newControllers[MAX_CONTROLLERS] = {};
+#endif
 
 struct OpenXrProgram : IOpenXrProgram {
     OpenXrProgram(const std::shared_ptr<Options>& options, const std::shared_ptr<IPlatformPlugin>& platformPlugin,
@@ -969,10 +1035,45 @@ struct OpenXrProgram : IOpenXrProgram {
         syncInfo.activeActionSets = &activeActionSet;
         CHECK_XRCMD(xrSyncActions(m_session, &syncInfo));
 
+#ifndef CLOUDXR3_5
+        const int MAX_CONTROLLERS = 2;
+        // 64 should be more than large enough. 2x32b masks that are < half used, plus scalars.
+        cxrControllerEvent events[MAX_CONTROLLERS][64] = {};
+        uint32_t eventCount[MAX_CONTROLLERS] = {};
+#endif
         cxrVRTrackingState trackingState{};
 
         // Get pose and grab action state and start haptic vibrate when hand is 90% squeezed.
         for (auto hand : {Side::LEFT, Side::RIGHT}) {
+
+#ifndef CLOUDXR3_5
+            const int handIndex = hand == Side::LEFT ? 0 : (Side::RIGHT ? 1:-1);
+            if (!m_newControllers[handIndex]) // null, so open to create+add
+            {
+                cxrControllerDesc desc = {};
+                //desc.id = capsHeader.DeviceID; // turns out this is NOT UNIQUE.  it's a fixed starting number, incremented, and thus devices can 'swap' IDs.
+                desc.id = handIndex; // so for now, we're going to just use handIndex, as we're guaranteed left+right will remain 0+1 always.
+                desc.role = handIndex?"cxr://input/hand/right":"cxr://input/hand/left";
+                desc.controllerName = "Oculus Touch";
+                desc.inputCount = inputCountQuest;
+                desc.inputPaths = inputPathsQuest;
+                desc.inputValueTypes = inputValueTypesQuest;
+#if false
+                CXR_LOGI("Adding controller index %u, ID %llu, role %s", handIndex, desc.id, desc.role);
+                CXR_LOGI("Controller caps bits = 0x%08x", capsHeader.DeviceID, remoteCaps.ControllerCapabilities);
+#endif
+                cxrError e = cxrAddController(Receiver, &desc, &m_newControllers[handIndex]);
+                if (e!=cxrError_Success)
+                {
+#if false
+                    CXR_LOGE("Error adding controller: %s", cxrErrorString(e));
+#endif
+                    // TODO!!! proper example for client to handle client-call errors, fatal vs 'notice'.
+                    continue;
+                }
+            }
+#endif
+
             XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
             getInfo.subactionPath = m_input.handSubactionPath[hand];
 
@@ -1122,6 +1223,25 @@ struct OpenXrProgram : IOpenXrProgram {
 #endif
                 }
             }
+
+#ifndef CLOUDXR3_5
+            if (eventCount[handIndex])
+            {
+                cxrError err = cxrFireControllerEvents(Receiver, m_newControllers[handIndex], events[handIndex], eventCount[handIndex]);
+                if (err != cxrError_Success)
+                {
+                    CXR_LOGE("cxrFireControllerEvents failed: %s", cxrErrorString(err));
+                    // TODO: how to handle UNUSUAL API errors? might just return up.
+                    throw("Error firing events"); // just to do something fatal until we can propagate and 'handle' it.
+                }
+                // save input state for easy comparison next time, ONLY if we sent the events...
+                mLastInputState[handIndex] = input;
+            }
+
+            // clear event count.
+            eventCount[handIndex] = 0;
+#endif
+
         }
 
         if (m_cloudxr.get()) {
