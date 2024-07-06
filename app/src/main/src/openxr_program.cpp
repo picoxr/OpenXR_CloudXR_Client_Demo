@@ -1028,6 +1028,9 @@ struct OpenXrProgram : IOpenXrProgram {
     bool IsSessionFocused() const override { return m_sessionState == XR_SESSION_STATE_FOCUSED; }
 
     void PollActions() override {
+
+        const cxrReceiverHandle Receiver = m_cloudxr->GetReceiver();
+
         // Sync actions
         const XrActiveActionSet activeActionSet{m_input.actionSet, XR_NULL_PATH};
         XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
@@ -1230,12 +1233,16 @@ struct OpenXrProgram : IOpenXrProgram {
                 cxrError err = cxrFireControllerEvents(Receiver, m_newControllers[handIndex], events[handIndex], eventCount[handIndex]);
                 if (err != cxrError_Success)
                 {
+#if false
                     CXR_LOGE("cxrFireControllerEvents failed: %s", cxrErrorString(err));
+#endif
                     // TODO: how to handle UNUSUAL API errors? might just return up.
                     throw("Error firing events"); // just to do something fatal until we can propagate and 'handle' it.
                 }
+#if false
                 // save input state for easy comparison next time, ONLY if we sent the events...
                 mLastInputState[handIndex] = input;
+#endif
             }
 
             // clear event count.

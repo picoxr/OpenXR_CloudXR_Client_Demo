@@ -42,6 +42,8 @@ public:
 
     bool SetupFramebuffer(GLuint colorTexture, uint32_t eye, uint32_t width, uint32_t height);
 
+    cxrReceiverHandle GetReceiver() { return mReceiver; }
+
 private:
 
     bool Start();
