@@ -10,6 +10,8 @@
 #if defined(ANDROID)
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hello_xr", __VA_ARGS__)
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "hello_xr", __VA_ARGS__)
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, "hello_xr", __VA_ARGS__)
+#define ALOGW(...) __android_log_print(ANDROID_LOG_WARN, "hello_xr", __VA_ARGS__)
 #endif
 
 namespace {
@@ -22,7 +24,7 @@ void SetLevel(Level minSeverity) { g_minSeverity = minSeverity; }
 
 void Write(Level severity, const std::string& msg) {
     if (severity < g_minSeverity) {
-        return;
+//        return;
     }
 
     const auto now = std::chrono::system_clock::now();
@@ -55,7 +57,7 @@ void Write(Level severity, const std::string& msg) {
     if (severity == Level::Error)
         ALOGE("%s", out.str().c_str());
     else
-        ALOGV("%s", out.str().c_str());
+        ALOGW("%s", out.str().c_str());
 #endif
 }
 }  // namespace Log

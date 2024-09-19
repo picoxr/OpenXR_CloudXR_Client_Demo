@@ -116,7 +116,23 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event){
  * android_native_app_glue.  It runs in its own thread, with its own
  * event loop for receiving input events and doing other things.
  */
+#if defined(ANDROID)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hello_xr", __VA_ARGS__)
+#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "hello_xr", __VA_ARGS__)
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hello_xr", __VA_ARGS__)
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, "hello_xr", __VA_ARGS__)
+#define ALOGW(...) __android_log_print(ANDROID_LOG_WARN, "hello_xr", __VA_ARGS__)
+#endif
+
 void android_main(struct android_app* app) {
+    ALOGE("%s", "ALOGE ------------------ MAIN.CPP -----------------");
+    ALOGI("%s", "ALOGI ------------------ MAIN.CPP -----------------");
+    ALOGV("%s", "ALOGV ------------------ MAIN.CPP -----------------");
+    ALOGW("%s", "ALOGW ------------------ MAIN.CPP -----------------");
+    Log::Write(Log::Level::Error, Fmt("E --------------------- MAIN.CPP ----------------"));
+    Log::Write(Log::Level::Info, Fmt("I ---------------------- MAIN.CPP ----------------"));
+    Log::Write(Log::Level::Warning, Fmt("W ---------------------- MAIN.CPP ----------------"));
+    Log::Write(Log::Level::Verbose, Fmt("V ---------------------- MAIN.CPP ----------------"));
     try {
         JNIEnv* Env;
         app->activity->vm->AttachCurrentThread(&Env, nullptr);

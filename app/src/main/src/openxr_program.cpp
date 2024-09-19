@@ -660,6 +660,10 @@ struct OpenXrProgram : IOpenXrProgram {
                 interactionProfilePath = "/interaction_profiles/pico/neo3_controller";
             }
 
+#if CLOUDXR_V3
+#else
+            interactionProfilePath = "/interaction_profiles/bytedance/pico4s_controller";
+#endif
             XrPath picoMixedRealityInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, interactionProfilePath, &picoMixedRealityInteractionProfilePath));
             std::vector<XrActionSuggestedBinding> bindings{{{m_input.gripPoseAction, gripPosePath[Side::LEFT]},
@@ -778,9 +782,13 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         GetDeviceInfo();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 0------------ "));
         LogReferenceSpaces();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 1------------ "));
         InitializeActions();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 2------------ "));
         CreateVisualizedSpaces();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 3------------ "));
 
         {
             XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo(m_options.AppSpace);

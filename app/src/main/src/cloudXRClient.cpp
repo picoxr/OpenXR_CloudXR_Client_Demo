@@ -224,7 +224,10 @@ bool CloudXRClient::CreateReceiver() {
     if (mReceiver) {
         return true;
     }
-//    s_options.mServerIP = "192.168.1.110";
+#ifdef CLOUDXR_READ_CONFIG_IP
+#else
+    //s_options.mServerIP = "192.168.1.123";
+#endif
     if (s_options.mServerIP.empty()) {
         Log::Write(Log::Level::Error, Fmt("no server ip specifid!!!!!!"));
         return false;
@@ -284,6 +287,8 @@ bool CloudXRClient::CreateReceiver() {
 #else
     clientProxy.UpdateClientState = [](void *context, cxrClientState state, cxrError error) {
 #endif
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState A"));
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState. [%i]", state));
         switch (state) {
             case cxrClientState_ReadyToConnect:
                 Log::Write(Log::Level::Info, Fmt("ready to connect......"));
@@ -316,7 +321,9 @@ bool CloudXRClient::CreateReceiver() {
 #endif
                 break;
         }
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState B"));
         reinterpret_cast<CloudXRClient *>(context)->mClientState = state;
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState C"));
     };
 
     cxrReceiverDesc desc = { 0 };
@@ -325,10 +332,24 @@ bool CloudXRClient::CreateReceiver() {
     desc.clientCallbacks = clientProxy;
 #ifdef CLOUDXR3_1
     desc.clientContext = this;
+#else
+    desc.clientCallbacks.clientContext = this;
 #endif
     desc.shareContext = &mContext;
 #ifdef CLOUDXR3_1
     desc.numStreams = 2;
+#else
+//    desc.numVideoStreamDescs = CXR_NUM_VIDEO_STREAMS_XR;
+//    for (uint32_t i = 0; i < desc.numVideoStreamDescs; i++)
+//    {
+//        desc.videoStreamDescs[i].format = cxrClientSurfaceFormat_RGB;
+//        desc.videoStreamDescs[i].width = width;
+//        desc.videoStreamDescs[i].height = height;
+//        desc.videoStreamDescs[i].fps = mTargetDisplayRefresh;
+//        desc.videoStreamDescs[i].maxBitrate = GOptions.mMaxVideoBitrate;
+//    }
+#endif
+#ifdef CLOUDXR3_1
     desc.receiverMode = cxrStreamingMode_XR;
 #endif
     desc.debugFlags = s_options.mDebugFlags;
@@ -424,6 +445,27 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     desc->disableVVSync = false;
     desc->foveatedScaleFactor = (s_options.mFoveation > 0 && s_options.mFoveation < 100) ? s_options.mFoveation : 0;
     desc->maxResFactor = 1.0f;
+
+#ifdef CLOUDXR3_2
+    //no code logic for original version
+#else
+    //cxrReceiverDesc no longer has nStreams member.
+    //closest equivalent is in cxrDeviceDesc. Copied from Oculus
+    {
+        //correct?
+        int width = configViews[0].recommendedImageRectWidth;
+        int height = configViews[0].recommendedImageRectHeight;
+
+        desc->numVideoStreamDescs = CXR_NUM_VIDEO_STREAMS_XR;
+        for (uint32_t i = 0; i < desc->numVideoStreamDescs; i++) {
+            desc->videoStreamDescs[i].format = cxrClientSurfaceFormat_RGB;
+            desc->videoStreamDescs[i].width = width;
+            desc->videoStreamDescs[i].height = height;
+            desc->videoStreamDescs[i].fps = mFps;//mTargetDisplayRefresh;
+            desc->videoStreamDescs[i].maxBitrate = s_options.mMaxVideoBitrate;//GOptions.mMaxVideoBitrate;
+        }
+    }
+#endif
 
     for (int i = 0; i < viewCount; i++) {
         if (configViews[i].next) {
