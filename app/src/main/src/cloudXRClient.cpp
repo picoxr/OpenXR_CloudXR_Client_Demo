@@ -137,6 +137,11 @@ void CloudXRClient::SetTrackingState(cxrVRTrackingState &trackingState) {
         mTrackingState.controller[i].booleanCompsChanged = trackingState.controller[i].booleanComps ^ booleanComps;
 #endif
     }
+
+#ifdef CLOUDXR3_4
+#else
+    trackingState.hmd.activityLevel = cxrDeviceActivityLevel_UserInteraction;
+#endif
 }
 
 void CloudXRClient::GetTrackingState(cxrVRTrackingState *trackingState) {
@@ -154,6 +159,10 @@ void CloudXRClient::GetTrackingState(cxrVRTrackingState *trackingState) {
     mTrackingState.hmd.pose.deviceIsConnected = cxrTrue ;
     mTrackingState.hmd.pose.trackingResult = cxrTrackingResult_Running_OK;
 
+#ifdef CLOUDXR3_4
+#else
+    mTrackingState.hmd.activityLevel = cxrDeviceActivityLevel_UserInteraction;
+#endif
     *trackingState = mTrackingState;
 }
 
@@ -493,6 +502,11 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     desc->chaperone.playArea.v[0] = 2.f * 1.5f * 0.5f;
     desc->chaperone.playArea.v[1] = 2.f * 1.5f * 0.5f;
     Log::Write(Log::Level::Info, Fmt("Setting play area to %0.2f x %0.2f", desc->chaperone.playArea.v[0], desc->chaperone.playArea.v[1]));
+
+#ifdef CLOUDXR3_2
+#else
+    desc->stereoDisplay = true;
+#endif
 }
 
 XrQuaternionf CloudXRClient::cxrToQuaternion(const cxrMatrix34 &m) {
