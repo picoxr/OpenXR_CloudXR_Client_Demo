@@ -17,7 +17,68 @@
 
 namespace {
 
-typedef enum {
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+#ifndef CLOUDXR3_5
+    //-----------------------------------------------------------------------------
+    static constexpr int inputCountQuest = 21;
+
+    static const char* inputPathsQuest[inputCountQuest] =
+            {
+                    "/input/system/click",
+                    "/input/application_menu/click", // this is carried over from old system and might be remove, it's not a button binding, more action.
+                    "/input/trigger/click",
+                    "/input/trigger/touch",
+                    "/input/trigger/value",
+                    "/input/grip/click",
+                    "/input/grip/touch",
+                    "/input/grip/value",
+                    "/input/joystick/click",
+                    "/input/joystick/touch",
+                    "/input/joystick/x",
+                    "/input/joystick/y",
+                    "/input/a/click",
+                    "/input/b/click",
+                    "/input/x/click", // Touch has X/Y on L controller, so we'll map the raw strings.
+                    "/input/y/click",
+                    "/input/a/touch",
+                    "/input/b/touch",
+                    "/input/x/touch",
+                    "/input/y/touch",
+                    "/input/thumb_rest/touch",
+            };
+
+    cxrInputValueType inputValueTypesQuest[inputCountQuest] =
+            {
+                    cxrInputValueType_boolean, //input/system/click
+                    cxrInputValueType_boolean, //input/application_menu/click
+                    cxrInputValueType_boolean, //input/trigger/click
+                    cxrInputValueType_boolean, //input/trigger/touch
+                    cxrInputValueType_float32, //input/trigger/value
+                    cxrInputValueType_boolean, //input/grip/click
+                    cxrInputValueType_boolean, //input/grip/touch
+                    cxrInputValueType_float32, //input/grip/value
+                    cxrInputValueType_boolean, //input/joystick/click
+                    cxrInputValueType_boolean, //input/joystick/touch
+                    cxrInputValueType_float32, //input/joystick/x
+                    cxrInputValueType_float32, //input/joystick/y
+                    cxrInputValueType_boolean, //input/a/click
+                    cxrInputValueType_boolean, //input/b/click
+                    cxrInputValueType_boolean, //input/x/click
+                    cxrInputValueType_boolean, //input/y/click
+                    cxrInputValueType_boolean, //input/a/touch
+                    cxrInputValueType_boolean, //input/b/touch
+                    cxrInputValueType_boolean, //input/x/touch
+                    cxrInputValueType_boolean, //input/y/touch
+                    cxrInputValueType_boolean, //input/thumb_rest/touch
+            };
+#endif
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////
+
+    typedef enum {
     DeviceTypeNone = 0,
     DeviceTypeNeo3,
     DeviceTypeNeo3Pro,
@@ -96,6 +157,11 @@ inline XrReferenceSpaceCreateInfo GetXrReferenceSpaceCreateInfo(const std::strin
     }
     return referenceSpaceCreateInfo;
 }
+
+#ifndef CLOUDXR3_5
+    const int MAX_CONTROLLERS = 2;
+    cxrControllerHandle     m_newControllers[MAX_CONTROLLERS] = {};
+#endif
 
 struct OpenXrProgram : IOpenXrProgram {
     OpenXrProgram(const std::shared_ptr<Options>& options, const std::shared_ptr<IPlatformPlugin>& platformPlugin,
@@ -594,6 +660,10 @@ struct OpenXrProgram : IOpenXrProgram {
                 interactionProfilePath = "/interaction_profiles/pico/neo3_controller";
             }
 
+#if CLOUDXR_V3
+#else
+            //interactionProfilePath = "/interaction_profiles/bytedance/pico4s_controller";
+#endif
             XrPath picoMixedRealityInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, interactionProfilePath, &picoMixedRealityInteractionProfilePath));
             std::vector<XrActionSuggestedBinding> bindings{{{m_input.gripPoseAction, gripPosePath[Side::LEFT]},
@@ -712,9 +782,13 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         GetDeviceInfo();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 0------------ "));
         LogReferenceSpaces();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 1------------ "));
         InitializeActions();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 2------------ "));
         CreateVisualizedSpaces();
+        Log::Write(Log::Level::Error, Fmt("------------------ CLOUDXR InitializeSession() 3------------ "));
 
         {
             XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo(m_options.AppSpace);
@@ -962,6 +1036,16 @@ struct OpenXrProgram : IOpenXrProgram {
     bool IsSessionFocused() const override { return m_sessionState == XR_SESSION_STATE_FOCUSED; }
 
     void PollActions() override {
+
+        if(m_cloudxr->GetClientState() != cxrClientState_StreamingSessionInProgress) {
+            //Log::Write(Log::Level::Info, Fmt("CloudXR PollActions() return ") );
+            return;
+        }
+
+        Log::Write(Log::Level::Info,
+                   Fmt("CloudXR PollActions() ... ") );
+        const cxrReceiverHandle Receiver = m_cloudxr->GetReceiver();
+
         // Sync actions
         const XrActiveActionSet activeActionSet{m_input.actionSet, XR_NULL_PATH};
         XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
@@ -969,10 +1053,55 @@ struct OpenXrProgram : IOpenXrProgram {
         syncInfo.activeActionSets = &activeActionSet;
         CHECK_XRCMD(xrSyncActions(m_session, &syncInfo));
 
+#ifndef CLOUDXR3_5
+        const int MAX_CONTROLLERS = 2;
+        // 64 should be more than large enough. 2x32b masks that are < half used, plus scalars.
+        cxrControllerEvent events[MAX_CONTROLLERS][64] = {};
+        uint32_t eventCount[MAX_CONTROLLERS] = {};
+#endif
         cxrVRTrackingState trackingState{};
 
         // Get pose and grab action state and start haptic vibrate when hand is 90% squeezed.
         for (auto hand : {Side::LEFT, Side::RIGHT}) {
+            Log::Write(Log::Level::Info,
+                       Fmt("CloudXR PollActions() left + right ") );
+#ifndef CLOUDXR3_5
+            const int handIndex = hand == Side::LEFT ? 0 : (Side::RIGHT ? 1:-1);
+            Log::Write(Log::Level::Info,
+                       Fmt("CloudXR PollActions() cxrAddController() Existing>> handIndex:<%d> address:<%d> ", handIndex, &m_newControllers[handIndex]) );
+            if (!m_newControllers[handIndex]) // null, so open to create+add
+            {
+                cxrControllerDesc desc = {};
+                //desc.id = capsHeader.DeviceID; // turns out this is NOT UNIQUE.  it's a fixed starting number, incremented, and thus devices can 'swap' IDs.
+                desc.id = handIndex; // so for now, we're going to just use handIndex, as we're guaranteed left+right will remain 0+1 always.
+                desc.role = handIndex?"cxr://input/hand/right":"cxr://input/hand/left";
+                desc.controllerName = "Pico Controllers";
+                desc.inputCount = inputCountQuest;
+                desc.inputPaths = inputPathsQuest;
+                desc.inputValueTypes = inputValueTypesQuest;
+#if false
+                CXR_LOGI("Adding controller index %u, ID %llu, role %s", handIndex, desc.id, desc.role);
+                CXR_LOGI("Controller caps bits = 0x%08x", capsHeader.DeviceID, remoteCaps.ControllerCapabilities);
+#endif
+                Log::Write(Log::Level::Info,
+                           Fmt("CloudXR PollActions() cxrAddController()... %d ", handIndex) );
+                cxrError e = cxrAddController(Receiver, &desc, &m_newControllers[handIndex]);
+                if (e!=cxrError_Success)
+                {
+                    Log::Write(Log::Level::Info,
+                               Fmt("CloudXR PollActions() cxrAddController() error ") );
+#if false
+                    CXR_LOGE("Error adding controller: %s", cxrErrorString(e));
+#endif
+                    // TODO!!! proper example for client to handle client-call errors, fatal vs 'notice'.
+                    continue;
+                } else {
+                    Log::Write(Log::Level::Info,
+                               Fmt("CloudXR PollActions() cxrAddController() handIndex:<%d> address:<%d> ", handIndex, &m_newControllers[handIndex]) );
+                }
+            }
+#endif
+
             XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
             getInfo.subactionPath = m_input.handSubactionPath[hand];
 
@@ -983,7 +1112,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if (menuValue.isActive == XR_TRUE) {
                 if (menuValue.changedSinceLastSync == XR_TRUE) {
                     if (menuValue.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                         trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
+#endif
                     }
                 }
             }
@@ -993,8 +1124,10 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
             CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getInfo, &thumbstickValue));
             if (thumbstickValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = thumbstickValue.currentState.x;
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = thumbstickValue.currentState.y;
+#endif
             }
             // thumbstick click
             getInfo.action = m_input.thumbstickClickAction;
@@ -1022,7 +1155,9 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateFloat triggerValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &triggerValue));
             if (triggerValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Trigger] = triggerValue.currentState;
+#endif
             }
             // trigger touch
             getInfo.action = m_input.triggerTouchAction;
@@ -1030,7 +1165,9 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerTouch));
             if (triggerTouch.isActive == XR_TRUE) {
                 if (triggerTouch.changedSinceLastSync == XR_TRUE && triggerTouch.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Touch;
+#endif
                 }
             }
             // trigger click
@@ -1039,7 +1176,9 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &triggerClick));
             if (triggerClick.isActive == XR_TRUE) {
                 if (triggerClick.changedSinceLastSync == XR_TRUE && triggerClick.currentState == XR_TRUE) {
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Click;
+#endif
                 }
             }
 
@@ -1048,7 +1187,9 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStateFloat squeezeValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &squeezeValue));
             if (squeezeValue.isActive == XR_TRUE) {
+#ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = squeezeValue.currentState;
+#endif
             }
             // squeeze click
             getInfo.action = m_input.squeezeClickAction;
@@ -1069,7 +1210,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((AValue.isActive == XR_TRUE) && (AValue.changedSinceLastSync == XR_TRUE)) {
                 if(AValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent A button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_A;
+#endif
                 }
             }
             // B button
@@ -1079,7 +1222,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((BValue.isActive == XR_TRUE) && (BValue.changedSinceLastSync == XR_TRUE)) {
                 if(BValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent B button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_B;
+#endif
                 }
             }
             // X button
@@ -1089,7 +1234,9 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((XValue.isActive == XR_TRUE) && (XValue.changedSinceLastSync == XR_TRUE)) {
                 if(XValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent X button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_X;
+#endif
                 }
             }
             // Y button
@@ -1099,9 +1246,34 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((YValue.isActive == XR_TRUE) && (YValue.changedSinceLastSync == XR_TRUE)) {
                 if(YValue.currentState == XR_TRUE) {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent Y button pressed %d", hand));
+#ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Y;
+#endif
                 }
             }
+
+#ifndef CLOUDXR3_5
+            if (eventCount[handIndex])
+            {
+                cxrError err = cxrFireControllerEvents(Receiver, m_newControllers[handIndex], events[handIndex], eventCount[handIndex]);
+                if (err != cxrError_Success)
+                {
+#if false
+                    CXR_LOGE("cxrFireControllerEvents failed: %s", cxrErrorString(err));
+#endif
+                    // TODO: how to handle UNUSUAL API errors? might just return up.
+                    throw("Error firing events"); // just to do something fatal until we can propagate and 'handle' it.
+                }
+#if false
+                // save input state for easy comparison next time, ONLY if we sent the events...
+                mLastInputState[handIndex] = input;
+#endif
+            }
+
+            // clear event count.
+            eventCount[handIndex] = 0;
+#endif
+
         }
 
         if (m_cloudxr.get()) {
