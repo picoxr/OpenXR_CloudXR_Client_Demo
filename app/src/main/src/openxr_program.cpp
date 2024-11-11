@@ -653,17 +653,16 @@ struct OpenXrProgram : IOpenXrProgram {
             const char* interactionProfilePath = nullptr;
             if (m_deviceType == DeviceTypeNeo3 || m_deviceType == DeviceTypeNeo3Pro || m_deviceType == DeviceTypeNeo3ProEye) {
                 interactionProfilePath = "/interaction_profiles/bytedance/pico_neo3_controller";
-            } else {
+            } else if (m_deviceType == DeviceTypePico4 || m_deviceType == DeviceTypePico4Pro) {
                 interactionProfilePath = "/interaction_profiles/bytedance/pico4_controller";
+            } else
+            {
+                interactionProfilePath = "/interaction_profiles/bytedance/pico4s_controller";
             }
-            if (m_deviceROM < 0x540) {
-                interactionProfilePath = "/interaction_profiles/pico/neo3_controller";
-            }
+//            if (m_deviceROM < 0x540) {
+//                interactionProfilePath = "/interaction_profiles/pico/neo3_controller";
+//            }
 
-#if CLOUDXR_V3
-#else
-            //interactionProfilePath = "/interaction_profiles/bytedance/pico4s_controller";
-#endif
             XrPath picoMixedRealityInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, interactionProfilePath, &picoMixedRealityInteractionProfilePath));
             std::vector<XrActionSuggestedBinding> bindings{{{m_input.gripPoseAction, gripPosePath[Side::LEFT]},
@@ -751,6 +750,8 @@ struct OpenXrProgram : IOpenXrProgram {
         Log::Write(Log::Level::Info, Fmt("device is: %s", buffer));
         if (std::string(buffer) == "Pico Neo 3 Pro Eye") {
             m_deviceType = DeviceTypeNeo3ProEye;
+        } else if (std::string(buffer) == "Pico Neo 3 Pro") {
+            m_deviceType = DeviceTypeNeo3Pro;
         } else if (std::string(buffer) == "Pico 4") {
             m_deviceType = DeviceTypePico4;
         }else if (std::string(buffer) == "PICO 4 Pro") {
