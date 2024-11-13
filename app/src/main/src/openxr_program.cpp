@@ -1115,8 +1115,6 @@ struct OpenXrProgram : IOpenXrProgram {
 #endif
             const uint64_t inputTimeNS = GetTimeInNS();
 
-            const uint64_t inputTimeNS = GetTimeInNS();
-
             XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
             getInfo.subactionPath = m_input.handSubactionPath[hand];
 
