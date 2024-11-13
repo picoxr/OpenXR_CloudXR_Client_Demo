@@ -1036,6 +1036,12 @@ struct OpenXrProgram : IOpenXrProgram {
 
     bool IsSessionFocused() const override { return m_sessionState == XR_SESSION_STATE_FOCUSED; }
 
+    static uint64_t GetTimeInNS() {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        return ((uint64_t)(now.tv_sec * 1e9) + now.tv_nsec);
+    }
+
     void PollActions() override {
 
         if(m_cloudxr->GetClientState() != cxrClientState_StreamingSessionInProgress) {
@@ -1101,7 +1107,8 @@ struct OpenXrProgram : IOpenXrProgram {
                                Fmt("CloudXR PollActions() cxrAddController() handIndex:<%d> address:<%d> ", handIndex, &m_newControllers[handIndex]) );
                 }
             }
-#endif
+
+            const uint64_t inputTimeNS = GetTimeInNS();
 
             XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
             getInfo.subactionPath = m_input.handSubactionPath[hand];
@@ -1115,6 +1122,12 @@ struct OpenXrProgram : IOpenXrProgram {
                     if (menuValue.currentState == XR_TRUE) {
 #ifdef CLOUDXR3_5
                         trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
+#else
+                        cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                        e.clientTimeNS = inputTimeNS;
+                        e.clientInputIndex = 1;
+                        e.inputValue.valueType = cxrInputValueType_boolean;
+                        e.inputValue.vBool = cxrTrue;
 #endif
                     }
                 }
@@ -1128,6 +1141,22 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = thumbstickValue.currentState.x;
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = thumbstickValue.currentState.y;
+#else
+                {
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 10;
+                    e.inputValue.valueType = cxrInputValueType_float32;
+                    e.inputValue.vF32 = thumbstickValue.currentState.x;// input.Joystick.x;
+                }
+
+                {
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 11;
+                    e.inputValue.valueType = cxrInputValueType_float32;
+                    e.inputValue.vF32 = thumbstickValue.currentState.y;// input.Joystick.x;
+                }
 #endif
             }
             // thumbstick click
@@ -1158,6 +1187,12 @@ struct OpenXrProgram : IOpenXrProgram {
             if (triggerValue.isActive == XR_TRUE) {
 #ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Trigger] = triggerValue.currentState;
+#else
+                cxrControllerEvent& e = events[handIndex][eventCount[handIndex]++];
+                e.clientTimeNS = inputTimeNS;
+                e.clientInputIndex = 4;
+                e.inputValue.valueType = cxrInputValueType_float32;
+                e.inputValue.vF32 = triggerValue.currentState;//input.IndexTrigger;
 #endif
             }
             // trigger touch
@@ -1168,6 +1203,12 @@ struct OpenXrProgram : IOpenXrProgram {
                 if (triggerTouch.changedSinceLastSync == XR_TRUE && triggerTouch.currentState == XR_TRUE) {
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Touch;
+#else
+                cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                e.clientTimeNS = inputTimeNS;
+                e.clientInputIndex = 3;
+                e.inputValue.valueType = cxrInputValueType_boolean;
+                e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
@@ -1179,6 +1220,12 @@ struct OpenXrProgram : IOpenXrProgram {
                 if (triggerClick.changedSinceLastSync == XR_TRUE && triggerClick.currentState == XR_TRUE) {
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Click;
+#else
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 2;
+                    e.inputValue.valueType = cxrInputValueType_boolean;
+                    e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
@@ -1190,6 +1237,12 @@ struct OpenXrProgram : IOpenXrProgram {
             if (squeezeValue.isActive == XR_TRUE) {
 #ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = squeezeValue.currentState;
+#else
+                cxrControllerEvent& e = events[handIndex][eventCount[handIndex]++];
+                e.clientTimeNS = inputTimeNS;
+                e.clientInputIndex = 7;
+                e.inputValue.valueType = cxrInputValueType_float32;
+                e.inputValue.vF32 = squeezeValue.currentState;// input.GripTrigger;
 #endif
             }
             // squeeze click
@@ -1213,6 +1266,12 @@ struct OpenXrProgram : IOpenXrProgram {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent A button pressed %d", hand));
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_A;
+#else
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 12;
+                    e.inputValue.valueType = cxrInputValueType_boolean;
+                    e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
@@ -1225,6 +1284,12 @@ struct OpenXrProgram : IOpenXrProgram {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent B button pressed %d", hand));
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_B;
+#else
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 13;
+                    e.inputValue.valueType = cxrInputValueType_boolean;
+                    e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
@@ -1237,6 +1302,12 @@ struct OpenXrProgram : IOpenXrProgram {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent X button pressed %d", hand));
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_X;
+#else
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 14;
+                    e.inputValue.valueType = cxrInputValueType_boolean;
+                    e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
@@ -1249,6 +1320,12 @@ struct OpenXrProgram : IOpenXrProgram {
                     Log::Write(Log::Level::Info, Fmt("pico keyevent Y button pressed %d", hand));
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Y;
+#else
+                    cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
+                    e.clientTimeNS = inputTimeNS;
+                    e.clientInputIndex = 15;
+                    e.inputValue.valueType = cxrInputValueType_boolean;
+                    e.inputValue.vBool = cxrTrue;
 #endif
                 }
             }
