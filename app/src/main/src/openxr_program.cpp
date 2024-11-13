@@ -1089,6 +1089,9 @@ struct OpenXrProgram : IOpenXrProgram {
 #if false
                 CXR_LOGI("Adding controller index %u, ID %llu, role %s", handIndex, desc.id, desc.role);
                 CXR_LOGI("Controller caps bits = 0x%08x", capsHeader.DeviceID, remoteCaps.ControllerCapabilities);
+#else
+                Log::Write( Log::Level::Info, Fmt("Adding controller index %u, ID %llu, role %s", handIndex, desc.id, desc.role) );
+                //Log::Write(Log::Level::Info,Fmt("Controller caps bits = 0x%08x"), capsHeader.DeviceID, remoteCaps.ControllerCapabilities);
 #endif
                 Log::Write(Log::Level::Info,
                            Fmt("CloudXR PollActions() cxrAddController()... %d ", handIndex) );
@@ -1099,6 +1102,8 @@ struct OpenXrProgram : IOpenXrProgram {
                                Fmt("CloudXR PollActions() cxrAddController() error ") );
 #if false
                     CXR_LOGE("Error adding controller: %s", cxrErrorString(e));
+#else
+                    Log::Write(Log::Level::Info, Fmt("Error adding controller: %s", cxrErrorString(e)) );
 #endif
                     // TODO!!! proper example for client to handle client-call errors, fatal vs 'notice'.
                     continue;
@@ -1107,6 +1112,8 @@ struct OpenXrProgram : IOpenXrProgram {
                                Fmt("CloudXR PollActions() cxrAddController() handIndex:<%d> address:<%d> ", handIndex, &m_newControllers[handIndex]) );
                 }
             }
+
+            const uint64_t inputTimeNS = GetTimeInNS();
 
             const uint64_t inputTimeNS = GetTimeInNS();
 
