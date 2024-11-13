@@ -1112,7 +1112,7 @@ struct OpenXrProgram : IOpenXrProgram {
                                Fmt("CloudXR PollActions() cxrAddController() handIndex:<%d> address:<%d> ", handIndex, &m_newControllers[handIndex]) );
                 }
             }
-
+#endif
             const uint64_t inputTimeNS = GetTimeInNS();
 
             const uint64_t inputTimeNS = GetTimeInNS();
