@@ -1128,6 +1128,7 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                         trackingState.controller[hand].booleanComps |= 1UL << cxrButton_System;
 #else
+                        Log::Write(Log::Level::Info, Fmt("pico keyevent menu %d", hand));
                         cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
                         e.clientTimeNS = inputTimeNS;
                         e.clientInputIndex = 1;
@@ -1147,6 +1148,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickX] = thumbstickValue.currentState.x;
                 trackingState.controller[hand].scalarComps[cxrAnalog_JoystickY] = thumbstickValue.currentState.y;
 #else
+                Log::Write(Log::Level::Info, Fmt("pico keyevent thumbstick x %f y %f", thumbstickValue.currentState.x, thumbstickValue.currentState.y));
                 {
                     cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
                     e.clientTimeNS = inputTimeNS;
@@ -1193,6 +1195,7 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Trigger] = triggerValue.currentState;
 #else
+                Log::Write(Log::Level::Info, Fmt("pico keyevent trigger value %f", triggerValue.currentState));
                 cxrControllerEvent& e = events[handIndex][eventCount[handIndex]++];
                 e.clientTimeNS = inputTimeNS;
                 e.clientInputIndex = 4;
@@ -1209,6 +1212,7 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Touch;
 #else
+                Log::Write(Log::Level::Info, Fmt("pico keyevent trigger touch %d", hand));
                 cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
                 e.clientTimeNS = inputTimeNS;
                 e.clientInputIndex = 3;
@@ -1226,6 +1230,7 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                     trackingState.controller[hand].booleanComps |= 1UL << cxrButton_Trigger_Click;
 #else
+                    Log::Write(Log::Level::Info, Fmt("pico keyevent trigger click %d", hand));
                     cxrControllerEvent &e = events[handIndex][eventCount[handIndex]++];
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 2;
@@ -1243,6 +1248,7 @@ struct OpenXrProgram : IOpenXrProgram {
 #ifdef CLOUDXR3_5
                 trackingState.controller[hand].scalarComps[cxrAnalog_Grip] = squeezeValue.currentState;
 #else
+                Log::Write(Log::Level::Info, Fmt("pico keyevent squeeze value %f", squeezeValue.currentState));
                 cxrControllerEvent& e = events[handIndex][eventCount[handIndex]++];
                 e.clientTimeNS = inputTimeNS;
                 e.clientInputIndex = 7;
@@ -1336,14 +1342,18 @@ struct OpenXrProgram : IOpenXrProgram {
             }
 
 #ifndef CLOUDXR3_5
+            Log::Write(Log::Level::Info, Fmt("----------cloud: keyevent cxrFireControllerEvents() eventCount[%d]: %d", handIndex, eventCount[handIndex]));
             if (eventCount[handIndex])
             {
+                Log::Write(Log::Level::Info, Fmt("----------cloud: keyevent cxrFireControllerEvents() fire hand: %d", handIndex));
                 cxrError err = cxrFireControllerEvents(Receiver, m_newControllers[handIndex], events[handIndex], eventCount[handIndex]);
                 if (err != cxrError_Success)
                 {
 #if false
                     CXR_LOGE("cxrFireControllerEvents failed: %s", cxrErrorString(err));
 #endif
+                    Log::Write(Log::Level::Info, Fmt("----------cloud: keyevent cxrFireControllerEvents() error %d", handIndex));
+
                     // TODO: how to handle UNUSUAL API errors? might just return up.
                     throw("Error firing events"); // just to do something fatal until we can propagate and 'handle' it.
                 }
