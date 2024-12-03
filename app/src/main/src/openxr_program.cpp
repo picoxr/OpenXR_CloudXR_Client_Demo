@@ -1082,7 +1082,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 //desc.id = capsHeader.DeviceID; // turns out this is NOT UNIQUE.  it's a fixed starting number, incremented, and thus devices can 'swap' IDs.
                 desc.id = handIndex; // so for now, we're going to just use handIndex, as we're guaranteed left+right will remain 0+1 always.
                 desc.role = handIndex?"cxr://input/hand/right":"cxr://input/hand/left";
-                desc.controllerName = "Pico Controllers";
+                desc.controllerName = "Oculus Touch";
                 desc.inputCount = inputCountQuest;
                 desc.inputPaths = inputPathsQuest;
                 desc.inputValueTypes = inputValueTypesQuest;
@@ -1133,7 +1133,7 @@ struct OpenXrProgram : IOpenXrProgram {
                         e.clientTimeNS = inputTimeNS;
                         e.clientInputIndex = 1;
                         e.inputValue.valueType = cxrInputValueType_boolean;
-                        e.inputValue.vBool = cxrTrue;
+                        e.inputValue.vBool = menuValue.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                     }
                 }
@@ -1217,7 +1217,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 e.clientTimeNS = inputTimeNS;
                 e.clientInputIndex = 3;
                 e.inputValue.valueType = cxrInputValueType_boolean;
-                e.inputValue.vBool = cxrTrue;
+                e.inputValue.vBool = triggerTouch.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                 }
             }
@@ -1235,7 +1235,7 @@ struct OpenXrProgram : IOpenXrProgram {
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 2;
                     e.inputValue.valueType = cxrInputValueType_boolean;
-                    e.inputValue.vBool = cxrTrue;
+                    e.inputValue.vBool = triggerClick.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                 }
             }
@@ -1282,7 +1282,7 @@ struct OpenXrProgram : IOpenXrProgram {
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 12;
                     e.inputValue.valueType = cxrInputValueType_boolean;
-                    e.inputValue.vBool = cxrTrue;
+                    e.inputValue.vBool = AValue.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                 }
             }
@@ -1300,7 +1300,8 @@ struct OpenXrProgram : IOpenXrProgram {
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 13;
                     e.inputValue.valueType = cxrInputValueType_boolean;
-                    e.inputValue.vBool = cxrTrue;
+                    e.inputValue.vBool = BValue.currentState == XR_TRUE ? cxrTrue : cxrFalse;
+
 #endif
                 }
             }
@@ -1318,7 +1319,7 @@ struct OpenXrProgram : IOpenXrProgram {
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 14;
                     e.inputValue.valueType = cxrInputValueType_boolean;
-                    e.inputValue.vBool = cxrTrue;
+                    e.inputValue.vBool = XValue.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                 }
             }
@@ -1336,7 +1337,7 @@ struct OpenXrProgram : IOpenXrProgram {
                     e.clientTimeNS = inputTimeNS;
                     e.clientInputIndex = 15;
                     e.inputValue.valueType = cxrInputValueType_boolean;
-                    e.inputValue.vBool = cxrTrue;
+                    e.inputValue.vBool = YValue.currentState == XR_TRUE ? cxrTrue : cxrFalse;
 #endif
                 }
             }
