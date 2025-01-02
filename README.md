@@ -4,11 +4,12 @@
 - If you have any questions/comments, please visit [**Pico Developer community**](https://developer-cn.pico-interactive.com/community) and raise your question there.
 
 ## Feature
-- The Project integrates with [CloudXR v3.2](https://developer.nvidia.com/nvidia-cloudxr-sdk-get-started) using [PICO OpenXR  SDK v2.2.0](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=11).
+December 2024: Supports CloudXR4
+- The Project integrates with [CloudXR](https://developer.nvidia.com/nvidia-cloudxr-sdk-get-started) using [PICO OpenXR  SDK v2.2.0](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=11).
 
 ## Pico OpenXR CloudXR Client Prerequisites
 ### Required
-- A PICO VR headset that supports the PICO OpenXR SDK, for example - Pico3 series or Pico4 series.
+- A PICO VR headset that supports the PICO OpenXR SDK, for example - Pico3 series or Pico4 Ultra series.
 - Android Debug Bridge (ADB) to install the client application without needing full developer tools.
   
 ### Optional
@@ -32,6 +33,7 @@ For developers who want to modify, build, and debug the client application, a co
 You also need:
 - [Google Oboe SDK 1.6.0](https://github.com/google/oboe/releases/tag/1.6.0)
 - [PICO OpenXR SDK](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=16)
+- [nVidia cloudXR 4 SDK] [Obtain access from](https://developer.nvidia.com/cloudxr-sdk)
 
 ## Building the Pico CloudXR Client
 1. Run Android Studio.
