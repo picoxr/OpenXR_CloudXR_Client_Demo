@@ -78,7 +78,7 @@ void CloudXRClient::Initialize(XrInstance instance, XrSystemId systemId, XrSessi
                     cxrError ret = cxrGetConnectionStats(mReceiver, &stats);
                     if (ret == cxrError_Success) {
                         Log::Write(Log::Level::Info, Fmt("clientstats framesPerSecond:%f, frameDeliveryTime:%f, frameQueueTime:%f, frameLatchTime:%f", 
-                            stats.framesPerSecond, stats.frameDeliveryTime, stats.frameQueueTime, stats.frameLatchTime));
+                            stats.framesPerSecond, stats.frameDeliveryTimeMs, stats.frameQueueTimeMs, stats.frameLatchTimeMs));
                         Log::Write(Log::Level::Info, Fmt("bandKbps:%6d, bandwidthUtilizationKbps:%5d, bandUtilizationPercent:%d%%, roundTripDelayMs:%d, "
                             "jitterUs:%d, totalPacketsReceived:%d, totalPacketsLost:%d, totalPacketsDropped:%d, quality:%d, qualityReasons:%d",
                             stats.bandwidthAvailableKbps, stats.bandwidthUtilizationKbps, stats.bandwidthUtilizationPercent, stats.roundTripDelayMs,
@@ -129,10 +129,19 @@ void CloudXRClient::SetSenserPoseState(XrPosef& pose, XrVector3f& linearVelocity
 
 void CloudXRClient::SetTrackingState(cxrVRTrackingState &trackingState) {
     for (uint32_t i = 0; i < CXR_NUM_CONTROLLERS; i++) {
+#ifdef CLOUDXR3_4
         uint32_t booleanComps = mTrackingState.controller[i].booleanComps;
+#endif
         mTrackingState.controller[i] = trackingState.controller[i];
+#ifdef CLOUDXR3_4
         mTrackingState.controller[i].booleanCompsChanged = trackingState.controller[i].booleanComps ^ booleanComps;
+#endif
     }
+
+#ifdef CLOUDXR3_4
+#else
+    trackingState.hmd.activityLevel = cxrDeviceActivityLevel_UserInteraction;
+#endif
 }
 
 void CloudXRClient::GetTrackingState(cxrVRTrackingState *trackingState) {
@@ -150,6 +159,10 @@ void CloudXRClient::GetTrackingState(cxrVRTrackingState *trackingState) {
     mTrackingState.hmd.pose.deviceIsConnected = cxrTrue ;
     mTrackingState.hmd.pose.trackingResult = cxrTrackingResult_Running_OK;
 
+#ifdef CLOUDXR3_4
+#else
+    mTrackingState.hmd.activityLevel = cxrDeviceActivityLevel_UserInteraction;
+#endif
     *trackingState = mTrackingState;
 }
 
@@ -220,7 +233,10 @@ bool CloudXRClient::CreateReceiver() {
     if (mReceiver) {
         return true;
     }
-//    s_options.mServerIP = "192.168.1.110";
+#ifdef CLOUDXR_READ_CONFIG_IP
+#else
+    //s_options.mServerIP = "192.168.1.104";
+#endif
     if (s_options.mServerIP.empty()) {
         Log::Write(Log::Level::Error, Fmt("no server ip specifid!!!!!!"));
         return false;
@@ -275,7 +291,13 @@ bool CloudXRClient::CreateReceiver() {
     };
 
     //the client_lib calls into here when the async connection status changes
+#ifdef CLOUDXR3_3
     clientProxy.UpdateClientState = [](void *context, cxrClientState state, cxrStateReason reason) {
+#else
+    clientProxy.UpdateClientState = [](void *context, cxrClientState state, cxrError error) {
+#endif
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState A"));
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState. [%i]", state));
         switch (state) {
             case cxrClientState_ReadyToConnect:
                 Log::Write(Log::Level::Info, Fmt("ready to connect......"));
@@ -284,29 +306,61 @@ bool CloudXRClient::CreateReceiver() {
                 Log::Write(Log::Level::Error, Fmt("Connection attempt in progress......"));
                 break;
             case cxrClientState_ConnectionAttemptFailed:
+#ifdef CLOUDXR3_3
                 Log::Write(Log::Level::Error, Fmt("Connection attempt failed. [%i]", reason));
+#else
+                Log::Write(Log::Level::Error, Fmt("Connection attempt failed. [%i]", error));
+#endif
                 break;
             case cxrClientState_StreamingSessionInProgress:
                 Log::Write(Log::Level::Info, Fmt("Async connection succeeded."));
                 break;
             case cxrClientState_Disconnected:
+#ifdef CLOUDXR3_3
                 Log::Write(Log::Level::Error, Fmt("Server disconnected with reason: %d", reason));
+#else
+                Log::Write(Log::Level::Error, Fmt("Server disconnected with reason: %d", error));
+#endif
                 break;
             default:
+#ifdef CLOUDXR3_3
                 Log::Write(Log::Level::Error, Fmt("Client state updated: %d, reason: %d", state, reason));
+#else
+                Log::Write(Log::Level::Error, Fmt("Client state updated: %d, reason: N/A", state));
+#endif
                 break;
         }
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState B"));
         reinterpret_cast<CloudXRClient *>(context)->mClientState = state;
+        Log::Write(Log::Level::Info, Fmt("----------- clientProxy.UpdateClientState C"));
     };
 
     cxrReceiverDesc desc = { 0 };
     desc.requestedVersion = CLOUDXR_VERSION_DWORD;
     desc.deviceDesc = mDeviceDesc;
     desc.clientCallbacks = clientProxy;
+#ifdef CLOUDXR3_1
     desc.clientContext = this;
+#else
+    desc.clientCallbacks.clientContext = this;
+#endif
     desc.shareContext = &mContext;
+#ifdef CLOUDXR3_1
     desc.numStreams = 2;
+#else
+//    desc.numVideoStreamDescs = CXR_NUM_VIDEO_STREAMS_XR;
+//    for (uint32_t i = 0; i < desc.numVideoStreamDescs; i++)
+//    {
+//        desc.videoStreamDescs[i].format = cxrClientSurfaceFormat_RGB;
+//        desc.videoStreamDescs[i].width = width;
+//        desc.videoStreamDescs[i].height = height;
+//        desc.videoStreamDescs[i].fps = mTargetDisplayRefresh;
+//        desc.videoStreamDescs[i].maxBitrate = GOptions.mMaxVideoBitrate;
+//    }
+#endif
+#ifdef CLOUDXR3_1
     desc.receiverMode = cxrStreamingMode_XR;
+#endif
     desc.debugFlags = s_options.mDebugFlags;
     desc.debugFlags |= cxrDebugFlags_EnableAImageReaderDecoder + cxrDebugFlags_LogVerbose + cxrDebugFlags_OutputLinearRGBColor;
     desc.logMaxSizeKB = CLOUDXR_LOG_MAX_DEFAULT;
@@ -320,7 +374,9 @@ bool CloudXRClient::CreateReceiver() {
     Log::Write(Log::Level::Info, Fmt("cxrCreateReceiver mReceiver:%p", mReceiver));
 
     mConnectionDesc.async = cxrTrue;
+#ifdef CLOUDXR3_1
     mConnectionDesc.maxVideoBitrateKbps = s_options.mMaxVideoBitrate;
+#endif
     mConnectionDesc.clientNetwork = s_options.mClientNetwork;
     mConnectionDesc.topology = s_options.mTopology;
     err = cxrConnect(mReceiver, s_options.mServerIP.c_str(), &mConnectionDesc);
@@ -379,22 +435,46 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
                                          configurationViewFovEPIC->recommendedFov.angleUp, configurationViewFovEPIC->recommendedFov.angleDown));
         }
     }
-
+#ifdef CLOUDXR3_2
     desc->deliveryType = cxrDeliveryType_Stereo_RGB;
     desc->width = configViews[0].recommendedImageRectWidth;
     desc->height = configViews[0].recommendedImageRectHeight;
     desc->fps = mFps;
+#endif
     desc->ipd = mIPD;
     desc->predOffset = -0.02f;
     desc->receiveAudio = true;
     desc->sendAudio = false;
     desc->posePollFreq = 0;
+#ifdef CLOUDXR3_2
     desc->ctrlType = cxrControllerType_OculusTouch;
+#endif
     desc->disablePosePrediction = false;
     desc->angularVelocityInDeviceSpace = false;
     desc->disableVVSync = false;
     desc->foveatedScaleFactor = (s_options.mFoveation > 0 && s_options.mFoveation < 100) ? s_options.mFoveation : 0;
     desc->maxResFactor = 1.0f;
+
+#ifdef CLOUDXR3_2
+    //no code logic for original version
+#else
+    //cxrReceiverDesc no longer has nStreams member.
+    //closest equivalent is in cxrDeviceDesc. Copied from Oculus
+    {
+        //correct?
+        int width = configViews[0].recommendedImageRectWidth;
+        int height = configViews[0].recommendedImageRectHeight;
+
+        desc->numVideoStreamDescs = CXR_NUM_VIDEO_STREAMS_XR;
+        for (uint32_t i = 0; i < desc->numVideoStreamDescs; i++) {
+            desc->videoStreamDescs[i].format = cxrClientSurfaceFormat_RGB;
+            desc->videoStreamDescs[i].width = width;
+            desc->videoStreamDescs[i].height = height;
+            desc->videoStreamDescs[i].fps = mFps;//mTargetDisplayRefresh;
+            desc->videoStreamDescs[i].maxBitrate = s_options.mMaxVideoBitrate;//GOptions.mMaxVideoBitrate;
+        }
+    }
+#endif
 
     for (int i = 0; i < viewCount; i++) {
         if (configViews[i].next) {
@@ -422,6 +502,11 @@ void CloudXRClient::GetDeviceDesc(cxrDeviceDesc *desc) const {
     desc->chaperone.playArea.v[0] = 2.f * 1.5f * 0.5f;
     desc->chaperone.playArea.v[1] = 2.f * 1.5f * 0.5f;
     Log::Write(Log::Level::Info, Fmt("Setting play area to %0.2f x %0.2f", desc->chaperone.playArea.v[0], desc->chaperone.playArea.v[1]));
+
+#ifdef CLOUDXR3_2
+#else
+    desc->stereoDisplay = true;
+#endif
 }
 
 XrQuaternionf CloudXRClient::cxrToQuaternion(const cxrMatrix34 &m) {
@@ -608,7 +693,11 @@ void CloudXRClient::TriggerHaptic(const cxrHapticFeedback *hapticFeedback) {
         return;
     }
     if (m_traggerHapticCallback) {
+#ifdef CLOUDXR3_5
         m_traggerHapticCallback(m_callbackArg, haptic.controllerIdx, haptic.amplitude, haptic.seconds, haptic.frequency);
+#else
+        m_traggerHapticCallback(m_callbackArg, 0, haptic.amplitude, haptic.seconds, haptic.frequency);
+#endif
     }
 }
 
