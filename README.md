@@ -9,7 +9,9 @@ December 2024: Supports CloudXR4
 
 ## Pico OpenXR CloudXR Client Prerequisites
 ### Required
-- A PICO VR headset that supports the PICO OpenXR SDK, for example - Pico3 series or Pico4 Ultra series.
+- A PICO VR headset that supports the PICO OpenXR SDK, for example:
+    Pico Neo 3 Enterprise
+    Pico 4 Ultra Enterprise
 - Android Debug Bridge (ADB) to install the client application without needing full developer tools.
   
 ### Optional
@@ -31,9 +33,9 @@ For developers who want to modify, build, and debug the client application, a co
   
 
 You also need:
+- [nVidia cloudXR 4 SDK] [Obtain access from](https://developer.nvidia.com/cloudxr-sdk)
 - [Google Oboe SDK 1.6.0](https://github.com/google/oboe/releases/tag/1.6.0)
 - [PICO OpenXR SDK](https://developer-global.pico-interactive.com/sdk?deviceId=1&platformId=3&itemId=16)
-- [nVidia cloudXR 4 SDK] [Obtain access from](https://developer.nvidia.com/cloudxr-sdk)
 
 ## Building the Pico CloudXR Client
 1. Run Android Studio.
